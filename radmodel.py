@@ -1,5 +1,3 @@
-import matplotlib
-matplotlib.use('agg')
 import numpy as np
 import os
 
@@ -33,18 +31,19 @@ def threshold(data,low=None,high=None):
     return data
 
 def parg(v,lim):
-    v[np.logical_not(np.isfinite(v))] = lim
-    v[v<lim] = lim
-    return v
+    vc = v.copy()
+    vc[np.logical_not(np.isfinite(vc))] = lim
+    vc[vc<lim] = lim
+    return vc
 
 def pnorm(v):
     return v/v.max()
 
-def int_tabulated(y, x=None, p=5):
+def int_tabulated(y, x=None, p=5, n=None):
     # similar to IDL int_tabulate...
     if x is None: x = np.arange(len(y))
     from scipy.interpolate import splrep,splev
-    n = len(x)
+    if n is None: n = len(x)
     while n % (p-1) != 0: n += 1
     h = float(x.max()-x.min())/float(n)
     ix = np.arange(n+1)*h + x.min()
@@ -75,39 +74,41 @@ def bb(f,t):
     return 2.*(k*t)*((nu/c)**2)*x/(np.exp(x)-1.)
 
 class FilterModel(object):
-    def __init__(self,name,filename=None,nfilt=1,fcent=None,width=None,amp=None,
-                 wavelength=None,t_min=None,t_max=None,e_max=0.0,norm=False,
-                 type='shader',abs_filename=None,a_min=None,a_max=None):
+    def __init__(self,name, filename=None, nfilt=1, fcent=None, width=None,
+                 amp=None, wavelength=None, t_min=None, t_max=None,
+                 e_max=0.0, norm=False, type='shader',
+                 abs_filename=None, a_min=None, a_max=None):
         self.name = name
         self.wavelength = None
         self.trans = None
         self.type = type
         if filename is None:
-            self._load_from_params(fcent=fcent,width=width,amp=amp,
-                                   nfilt=nfilt,norm=norm)
+            self._load_from_params(fcent=fcent, width=width, amp=amp,
+                                   nfilt=nfilt, norm=norm)
         else:
             filename_orig = filename
             if not os.path.isfile(filename):
                 realdir = os.path.dirname(os.path.realpath(__file__))
-                filename = os.path.join(realdir,'data',filename)
+                filename = os.path.join(realdir, 'data', filename)
             if not os.path.isfile(filename):
                 raise OSError,'Cannot find filter file %s' % filename_orig
-            self._load_from_file(filename,nfilt=nfilt,norm=norm)
+            self._load_from_file(filename, nfilt=nfilt, norm=norm)
         self.emis_max = e_max
         self.trans = self._interpt(wavelength=wavelength,
-                                  t_min=t_min,t_max=t_max) 
+                                   t_min=t_min, t_max=t_max) 
         if type == 'thermal':
             if abs_filename is None:
                 raise ValueError,'Need filename for absorption data'
             abs_filename_orig = abs_filename
             if not os.path.isfile(abs_filename):
                 realdir = os.path.dirname(os.path.realpath(__file__))
-                abs_filename = os.path.join(realdir,'data',abs_filename)
+                abs_filename = os.path.join(realdir, 'data', abs_filename)
             if not os.path.isfile(abs_filename):
-                raise OSError,'Cannot find filter file %s' % abs_filename_orig
-            self._load_abs_from_file(abs_filename,norm=norm)
+                raise OSError,\
+                    'Cannot find filter file %s' % abs_filename_orig
+            self._load_abs_from_file(abs_filename, norm=norm)
             self.abs = self._interpa(wavelength=wavelength,
-                                     a_min=a_min,a_max=a_max)
+                                     a_min=a_min, a_max=a_max)
        
     def _load_from_file(self,filename,nfilt=1,norm=False):
         """
@@ -138,7 +139,8 @@ class FilterModel(object):
         if norm: a /= np.max(a)
         self.abs_raw = a
         
-    def _load_from_params(self,fcent=None,width=None,amp=None,nfilt=1,norm=False):
+    def _load_from_params(self,fcent=None, width=None, amp=None, 
+                          nfilt=1,norm=False):
         """
         Generate filter transmission from parameters
         Inputs:
@@ -225,24 +227,24 @@ class FilterModel(object):
             raise KeyError,'unknown filter type %s' % self.type
 
 class ThermalFilter(FilterModel):
-    def __init__(self,name,**kwargs):
+    def __init__(self,name, filename=None, **kwargs):
         kwargs['type'] = 'thermal'
         kwargs['abs_filename'] = 'poly_abs.txt'
-        super(ThermalFilter,self).__init__(name,**kwargs)
+        super(ThermalFilter,self).__init__(name, filename=filename, **kwargs)
 
 class NylonFilter(FilterModel):
-    def __init__(self,thickness,wavelength,a=None,b=None,alt=False,
-                 t_min=None,t_max=None,e_max=0.0,norm=False):
+    def __init__(self,thickness, wavelength, a=None, b=None, alt=False,
+                 t_min=None, t_max=None, e_max=0.0, norm=False):
         self.name = 'nylon'
         self.wavelength = None
         self.trans = None
         self.type = 'absorber'
-        self._load(thickness,wavelength,a=a,b=b,alt=alt,
-                   t_min=t_min,t_max=t_max,norm=norm)
+        self._load(thickness, wavelength, a=a, b=b, alt=alt,
+                   t_min=t_min, t_max=t_max, norm=norm)
         self.emis_max = e_max
     
-    def _load(self,thickness,wavelength,a=None,b=None,alt=False,
-              t_min=None,t_max=None,norm=False):
+    def _load(self,thickness, wavelength, a=None, b=None, alt=False,
+              t_min=None, t_max=None, norm=False):
         if a is None and b is None:
             if alt:
                 a = 7.35e-5
@@ -276,20 +278,25 @@ class Cirlex(FilterModel):
     
     def get_trans(self,wavelength=None,t_min=None,t_max=None):
         if not hasattr(self,'trans'):
-            # from Judy Lau's thesis, calculate the loss tangent at room temperature
-            tandelta_cirlex_warm = (2.0 * (0.037*(self.frequency/150)**0.52)) / 3.37
-            # shift it to cold values, based on the scaling they measured at 90 GHz
+            # from Judy Lau's thesis, calculate the loss tangent at room 
+            # temperature
+            tandelta_cirlex_warm = \
+                (2.0 * (0.037*(self.frequency/150)**0.52)) / 3.37
+            # shift it to cold values, based on the scaling they measured
+            # at 90 GHz
             tandelta_cirlex_cold = tandelta_cirlex_warm * (0.002/0.017)
             # convert that to alpha
             alpha_cirlex_cold = tandelta_cirlex_cold * \
                 ((2*np.pi*np.sqrt(3.37)*self.frequency*1.0e9)/(3.0e8))
             # convert alpha to loss in percent
-            trans_cirlex_cold = np.exp(-alpha_cirlex_cold * (0.010 / 39.3701))
+            trans_cirlex_cold = \
+                np.exp(-alpha_cirlex_cold * (0.010 / 39.3701))
             # # convert that to alpha
             # alpha_cirlex_warm = tandelta_cirlex_warm * \
             #     ((2*np.pi*np.sqrt(3.37)*self.frequency*1.0e9)/(3.0e8))
             # # convert alpha to loss in percent
-            # trans_cirlex_warm = np.exp(-alpha_cirlex_warm * (0.010 / 39.3701))
+            # trans_cirlex_warm = \
+            #     np.exp(-alpha_cirlex_warm * (0.010 / 39.3701))
             self.trans = threshold(trans_cirlex_cold,low=t_min,high=t_max)
         return self.trans
 
@@ -317,7 +324,8 @@ class SpiderRadiativeModel(object):
     _NY_MIN = None
     
     _MAX_FATMOS = 400.0
-    _ATMOS_EMIS = 1e-1 # emissivity assumed for 273K atmosphere beyond 1 THz
+    # emissivity assumed for 273K atmosphere beyond 1 THz
+    _ATMOS_EMIS = 1e-1
     
     def __init__(self,**kwargs):
         self.params = dict()
@@ -347,26 +355,30 @@ class SpiderRadiativeModel(object):
         # emissivity at center freq
         self.params['window_trans'] = kwargs.pop('window_trans',1e-3)
         # temperature
-        self.params['Twin'] = kwargs.pop('window_temp',kwargs.pop('Twin',273.0))
-        self.params['window_beta'] = kwargs.pop('window_beta',2) # emissivity index
+        self.params['Twin'] = kwargs.pop('window_temp',
+                                         kwargs.pop('Twin',273.0))
+        # emissivity index
+        self.params['window_beta'] = kwargs.pop('window_beta',2)
         
         # stop properties
         self.params['t2k'] = kwargs.pop('t2k',kwargs.pop('t_stop',2.0))
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
 
         datdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'data')
+                              'data')
         self.params['datdir'] = datdir
         
         figdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'figs')
+                              'figs')
         if not os.path.exists(figdir):
             os.mkdir(figdir)
         self.params['figdir'] = figdir
         
         self.params['atmfile'] = os.path.join(datdir,'amatm.dat')
-        # self.params['spectfile'] = os.path.join(datdir,'145GHzSpectrum.dat')
-        self.params['spectfile'] = os.path.join(datdir,'spectrum_150ghz.dat')
+        # self.params['spectfile'] = os.path.join(datdir,
+        #                                         '145GHzSpectrum.dat')
+        self.params['spectfile'] = os.path.join(datdir,
+                                                'spectrum_150ghz.dat')
         
     def update_params(self,*args,**kwargs):
         self.params.update(*args,**kwargs)
@@ -430,22 +442,22 @@ class SpiderRadiativeModel(object):
                                e_max=self._E_SH_MAX,
                                norm=norm),
             '12icm': ThermalFilter('12icm',
-                                   filename='spider_filters_w1078_12icm.txt',
+                                   'spider_filters_w1078_12icm.txt',
                                    wavelength=self.wavelength,
                                    t_min=self._T_HP_MIN,
                                    e_max = self._E_HP_MAX,
                                    norm=norm),
-            '7icm': ThermalFilter('7icm',filename='spider_filters_w1522_7icm.txt',
+            '7icm': ThermalFilter('7icm','spider_filters_w1522_7icm.txt',
                                   wavelength=self.wavelength,
                                   t_min=self._T_HP_MIN,
                                   e_max = self._E_HP_MAX,
                                   norm=norm),
-            '4icm': ThermalFilter('4icm',filename='spider_filters_4icm.txt',
+            '4icm': ThermalFilter('4icm','spider_filters_4icm.txt',
                                   wavelength=self.wavelength,
                                   t_min=self._T_HP_MIN,
                                   e_max = self._E_HP_MAX,
                                   norm=norm),
-            '6icm': ThermalFilter('6icm',filename='spider_filters_6icm.txt',
+            '6icm': ThermalFilter('6icm','spider_filters_6icm.txt',
                                   wavelength=self.wavelength,
                                   t_min=self._T_HP_MIN,
                                   e_max = self._E_HP_MAX,
@@ -483,9 +495,10 @@ class SpiderRadiativeModel(object):
         f_sky = threshold(f_sky,low=1e-12)
         t_sky = threshold(t_sky,low=1e-12)
         Inu_atmos = bb(f_sky,t_sky)
-        self.Inu_atmos = np.where(self.frequency>fmax,
-                                   emax*bb(self.frequency,273.0),
-                                   np.interp(self.frequency,f_sky,Inu_atmos))
+        self.Inu_atmos = np.where(
+            self.frequency>fmax,
+            emax*bb(self.frequency,273.0),
+            np.interp(self.frequency,f_sky,Inu_atmos))
         return self.Inu_atmos
     
     def load_spectrum(self,filename=None):
@@ -508,13 +521,16 @@ class SpiderRadiativeModel(object):
         res = self.get_param('res',kwargs.pop('res',1000))
         fcent = self.get_param('fcent',kwargs.pop('fcent',148))
         if fcent == 148:
-            self.update_params(spectfile=os.path.join(self.get_param('datdir'),
-                                                      'spectrum_150ghz.dat'))
-            # self.update_params(spectfile=os.path.join(self.get_param('datdir'),
-            #                                           '145GHzSpectrum.dat'))
+            self.update_params(
+                spectfile=os.path.join(self.get_param('datdir'),
+                                       'spectrum_150ghz.dat'))
+            # self.update_params(
+            #     spectfile=os.path.join(self.get_param('datdir'),
+            #                            '145GHzSpectrum.dat'))
         elif fcent == 94:
-            self.update_params(spectfile=os.path.join(self.get_param('datdir'),
-                                                       'spectrum_90ghz.dat'))
+            self.update_params(
+                spectfile=os.path.join(self.get_param('datdir'),
+                                       'spectrum_90ghz.dat'))
         else:
             raise ValueError,'fcent must be 94 or 148 GHz'
         bw = self.get_param('bw',kwargs.pop('bw',0.40))
@@ -606,6 +622,7 @@ class SpiderRadiativeModel(object):
         idx = self.id_band
         from scipy.constants import c
         conv = (c/freq)**2*1.e-9
+        npts = len(wlen)
         
         ### TOTAL LOADING
         
@@ -636,12 +653,12 @@ class SpiderRadiativeModel(object):
         a_subk = i_subk*e_subk
         
         bb_comp = [bb_sky, bb_vcs2, bb_vcs1, bb_4k, bb_2k]
-        t_comp = [t_vcs2, t_vcs1, t_4k, t_2k, 1.0]
-        e_comp = [1.0, e_vcs2, e_vcs1, e_4k, e_2k]
+        t_comp = [np.ones_like(wlen), t_vcs2, t_vcs1, t_4k, t_2k]
+        e_comp = [np.ones_like(wlen), e_vcs2, e_vcs1, e_4k, e_2k]
         i_comp = self.calc_components(bb_comp, t_comp, e_comp)
         
         eta = self.params['eta']
-        stack = np.prod(t_comp) # t_vcs2*t_vcs1*t_4k*t_2k
+        stack = np.prod(t_comp,axis=0)
         stack_max = np.max(stack[idx])
         print ''
         print 'stack transmission: %.3f' % stack_max
@@ -649,6 +666,9 @@ class SpiderRadiativeModel(object):
         print 'end-to-end transmission: %.3f' % (stack_max*eta)
         
         if plot:
+            if not args.interactive:
+                from matplotlib import use
+                use('agg')
             import matplotlib.pyplot as plt
             def savefig(figdir,tag1,tag2):
                 filename = os.path.join(figdir,'%s%s.png' % 
@@ -666,7 +686,6 @@ class SpiderRadiativeModel(object):
                     plt.figure(figsize=figsize)
                     ax = plt.gca()
                 for data,linestyle,stage,label in struct:
-                    print stage,min(wlen),max(wlen)
                     color = col[stage] if stage in col else stage
                     ax.plot(wlen,data,linestyle,color=color,label=label)
                     ax.set_xlabel(xlabel)
@@ -703,13 +722,13 @@ class SpiderRadiativeModel(object):
                          title='Incident radiation on each stage',
                          ncol=2, filetag='incident_total')
             
-            norm = i_vcs2.max() # int_tabulated(i_vcs1,x=freq)
+            norm = i_vcs2.max()
             plot_loading([(i_vcs2/norm, '-', 'sky', 'Sky'),
                           (t_vcs2, '--', 'k', 'VCS2 trans')],
                          title='Incident radiation on VCS2',
                          filetag='incident_vcs2')
             
-            norm = i_vcs1.max() # int_tabulated(i_vcs1,x=freq)
+            norm = i_vcs1.max()
             plot_loading([(i_vcs1/norm, '-', 'k', 'Total'),
                           (i_comp[1][0]/norm, '-', 'sky', 'Sky'),
                           (i_comp[1][1]/norm, '-', 'vcs2', 'VCS2'),
@@ -717,7 +736,7 @@ class SpiderRadiativeModel(object):
                          title='Incident radiation on VCS1',
                          filetag='incident_vcs1')
             
-            norm = i_4k.max() # int_tabulated(i_4k,x=freq)
+            norm = i_4k.max()
             plot_loading([(i_4k/norm, '-', 'k', 'Total'),
                           (i_comp[2][0]/norm, '-', 'sky', 'Sky'),
                           (i_comp[2][1]/norm, '-', 'vcs2', 'VCS2'),
@@ -726,7 +745,7 @@ class SpiderRadiativeModel(object):
                          title='Incident radiation on 4K',
                          filetag='incident_4k')
             
-            norm = i_2k.max() # int_tabulated(i_2k,x=freq)
+            norm = i_2k.max()
             plot_loading([(i_2k/norm, '-', 'k', 'Total'),
                           (i_comp[3][0]/norm, '-', 'sky', 'Sky'),
                           (i_comp[3][1]/norm, '-', 'vcs2', 'VCS2'),
@@ -736,7 +755,7 @@ class SpiderRadiativeModel(object):
                          title='Incident radiation on 2K',
                          filetag='incident_2k')
             
-            norm = i_subk.max() # int_tabulated(i_subk,x=freq)
+            norm = i_subk.max()
             plot_loading([(i_subk/norm, '-', 'k', 'Total'),
                           (i_comp[4][0]/norm, '-', 'sky', 'Sky'),
                           (i_comp[4][1]/norm, '-', 'vcs2', 'VCS2'),
@@ -755,10 +774,10 @@ class SpiderRadiativeModel(object):
         idx2 = self.id_band
         
         spilloverv = t*self.params['spill_frac']*bb_2k*conv
-        spillover = int_tabulated(spilloverv[idx2],x=freq[idx2])
+        spillover = int_tabulated(spilloverv[idx2],x=freq[idx2],n=npts)
         
         normv = t*i_subk*conv + spilloverv
-        norm = int_tabulated(normv[idx2],x=freq[idx2])
+        norm = int_tabulated(normv[idx2],x=freq[idx2],n=npts)
         print 'Total absorbed [pW]: %.6f' % (eta*norm*1.e12)
         print 'Total incident [pW]: %.6f' % (norm*1.e12)
         
@@ -781,35 +800,35 @@ class SpiderRadiativeModel(object):
             ax_ib.plot(freq,parg(normv/norm,xl),'k',label='Norm')
         
         arg = i_comp[-1][0]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freq[idx2])
+        q_det = int_tabulated(arg[idx2],x=freq[idx2],n=npts)
         sky_loading = q_det/norm*100
         print 'Sky: \t\t %9.6f %6.2f%%' % (q_det*1e12, sky_loading)
         if plot:
             ax_ib.plot(freq,parg(arg/norm,xl),color=col['sky'],label='Sky')
         
         arg = i_comp[-1][1]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freq[idx2])
+        q_det = int_tabulated(arg[idx2],x=freq[idx2],n=npts)
         vcs2_loading = q_det/norm*100
         print 'VCS2: \t\t %9.6f %6.2f%%' % (q_det*1e12, vcs2_loading)
         if plot:
             ax_ib.plot(freq,parg(arg/norm,xl),color=col['vcs2'],label='VCS2')
         
         arg = i_comp[-1][2]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freq[idx2])
+        q_det = int_tabulated(arg[idx2],x=freq[idx2],n=npts)
         vcs1_loading = q_det/norm*100
         print 'VCS1: \t\t %9.6f %6.2f%%' % (q_det*1e12, vcs1_loading)
         if plot:
             ax_ib.plot(freq,parg(arg/norm,xl),color=col['vcs1'],label='VCS1')
         
         arg = i_comp[-1][3]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freq[idx2])
+        q_det = int_tabulated(arg[idx2],x=freq[idx2],n=npts)
         lhe_loading = q_det/norm*100
         print '4K stage: \t %9.6f %6.2f%%' % (q_det*1e12, lhe_loading)
         if plot:
             ax_ib.plot(freq,parg(arg/norm,xl),color=col['4k'],label='4K')
         
         arg = i_comp[-1][4]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freq[idx2])
+        q_det = int_tabulated(arg[idx2],x=freq[idx2],n=npts)
         stop_loading = q_det/norm*100
         print '2K stage: \t %9.6f %6.2f%%' % (q_det*1e12, stop_loading)
         if plot:
@@ -836,16 +855,14 @@ class SpiderRadiativeModel(object):
         
         area = np.pi*(0.3/2.)**2
         fudge = 1.0
-        # q_vcs2 = int_tabulated(a_vcs2*conv,x=freq)*area*fudge
-        # q_vcs1 = int_tabulated(a_vcs1*conv,x=freq)*area*fudge
-        # q_4k = int_tabulated(a_4k*conv,x=freq)*area*fudge
-        # q_subk = int_tabulated(a_subk*conv,x=freq)*area*fudge
-        q_vcs2 = int_tabulated(a_vcs2,x=freq)*area*1e9*fudge
-        q_vcs1 = int_tabulated(a_vcs1,x=freq)*area*1e9*fudge
-        q_4k = int_tabulated(a_4k,x=freq)*area*1e9*fudge
-        q_2k = int_tabulated(a_2k,x=freq)*area*1e9*fudge
-        q_subk = int_tabulated(a_subk,x=freq)*area*1e9*fudge
-        q_det = int_tabulated(t[idx2]*i_subk[idx2]*conv[idx2],x=freq[idx2])
+        fact = area*1e9*fudge
+        # fact = conv*fudge
+        q_vcs2 = int_tabulated(a_vcs2*fact,x=freq,n=npts)
+        q_vcs1 = int_tabulated(a_vcs1*fact,x=freq,n=npts)
+        q_4k = int_tabulated(a_4k*fact,x=freq,n=npts)
+        q_2k = int_tabulated(a_2k*fact,x=freq,n=npts)
+        q_subk = int_tabulated(a_subk*fact,x=freq,n=npts)
+        q_det = int_tabulated((t*i_subk*conv)[idx2],x=freq[idx2],n=npts)
         q_det = eta * (q_det + spillover)
         
         print ''
@@ -944,16 +961,12 @@ if __name__ == "__main__":
         raise ValueError,'unrecognized model number %d' % args.model
     
     # print 'Filter stack:',filter_stack
-    print 'Filter stack:'
+    print 'Filter stack: %s' % tag
     print 'VCS2:',filter_stack['vcs2']
     print 'VCS1:',filter_stack['vcs1']
     print '4K:',filter_stack['4k']
     print '2K:',filter_stack['2k']
     
-    # if not args.interactive:
-    #     from matplotlib import use
-    #     use('agg')
-    
-    S = SpiderRadiativeModel(fcent=fcent,**opts)
+    S = SpiderRadiativeModel(fcent=fcent, **opts)
     S.run(filter_stack=filter_stack, tag=tag,
           plot=args.plot, interactive=args.interactive)
