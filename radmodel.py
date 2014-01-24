@@ -89,7 +89,7 @@ class FilterModel(object):
             filename_orig = filename
             if not os.path.isfile(filename):
                 realdir = os.path.dirname(os.path.realpath(__file__))
-                filename = os.path.join(realdir, 'data', filename)
+                filename = os.path.join(realdir, 'rad_data', filename)
             if not os.path.isfile(filename):
                 raise OSError,'Cannot find filter file %s' % filename_orig
             self._load_from_file(filename, nfilt=nfilt, norm=norm)
@@ -102,7 +102,7 @@ class FilterModel(object):
             abs_filename_orig = abs_filename
             if not os.path.isfile(abs_filename):
                 realdir = os.path.dirname(os.path.realpath(__file__))
-                abs_filename = os.path.join(realdir, 'data', abs_filename)
+                abs_filename = os.path.join(realdir, 'rad_data', abs_filename)
             if not os.path.isfile(abs_filename):
                 raise OSError,\
                     'Cannot find filter file %s' % abs_filename_orig
@@ -553,7 +553,7 @@ class SpiderRadiativeModel(object):
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
 
         datdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                              'data')
+                              'rad_data')
         self.params['datdir'] = datdir
         
         figdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
