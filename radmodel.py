@@ -63,7 +63,7 @@ def integrate(y,x=None):
     from scipy.interpolate import splrep,splev
     return np.trapz(splev(ix,splrep(x,y,s=0),der=0),x=ix)
 
-def bb(f,t):
+def blackbody(f,t):
     """
     blackbody in units of W/m^2/str/Hz given freq in GHz and temp in K
     """
@@ -76,8 +76,8 @@ def bb(f,t):
 class FilterModel(object):
     def __init__(self,name, filename=None, nfilt=1, fcent=None, width=None,
                  amp=None, wavelength=None, t_min=None, t_max=None,
-                 e_max=0.0, norm=False, type='shader',
-                 abs_filename=None, a_min=None, a_max=None):
+                 e_max=0.0, norm=False, type='shader', abs_filename=None,
+                 thickness=None, a_min=None, a_max=None):
         self.name = name
         self.wavelength = None
         self.trans = None
@@ -96,7 +96,7 @@ class FilterModel(object):
         self.emis_max = e_max
         self.trans = self._interpt(wavelength=wavelength,
                                    t_min=t_min, t_max=t_max) 
-        if type == 'thermal':
+        if type == 'metalmesh':
             if abs_filename is None:
                 raise ValueError,'Need filename for absorption data'
             abs_filename_orig = abs_filename
@@ -106,7 +106,8 @@ class FilterModel(object):
             if not os.path.isfile(abs_filename):
                 raise OSError,\
                     'Cannot find filter file %s' % abs_filename_orig
-            self._load_abs_from_file(abs_filename, norm=norm)
+            self._load_abs_from_file(abs_filename, thickness=thickness,
+                                     norm=norm)
             self.abs = self._interpa(wavelength=wavelength,
                                      a_min=a_min, a_max=a_max)
        
@@ -128,13 +129,14 @@ class FilterModel(object):
         if norm: t /= np.max(t)
         self.trans_raw = threshold(t,low=0.0,high=1.0)
         
-    def _load_abs_from_file(self,filename,norm=False):
+    def _load_abs_from_file(self,filename, thickness=2.18, norm=False):
         if not os.path.isfile(filename):
             raise OSError,'file %s not found' % filename
         f,a = np.loadtxt(filename,unpack=True,skiprows=1)
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
-        a = np.append(np.insert(1-np.exp(-a),0,0.0),1.0)
+        # NB: thickness in mm
+        a = np.append(np.insert(1-np.exp(-a*thickness/11),0,0.0),1.0)
         self.abs_wavelength_raw = l
         if norm: a /= np.max(a)
         self.abs_raw = a
@@ -207,7 +209,7 @@ class FilterModel(object):
         if self.type == 'shader':
             # return 0.01*(1.0-self.get_trans(wavelength,t_min,t_max))
             return 0.0
-        elif self.type == 'thermal':
+        elif self.type == 'metalmesh':
             return self.get_abs(wavelength,t_min,t_max)
         elif self.type == 'absorber':
             return 1.0 - self.get_trans(wavelength,t_min,t_max)
@@ -218,7 +220,7 @@ class FilterModel(object):
                 a_min=0,a_max=1):
         if self.type == 'shader':
             return 1.0 - self.get_trans(wavelength,t_min,t_max)
-        elif self.type == 'thermal':
+        elif self.type == 'metalmesh':
             return 1.0 - self.get_trans(wavelength,t_min,t_max) \
                 - self.get_abs(wavelength,a_min,a_max)
         elif self.type == 'absorber':
@@ -226,11 +228,12 @@ class FilterModel(object):
         else:
             raise KeyError,'unknown filter type %s' % self.type
 
-class ThermalFilter(FilterModel):
-    def __init__(self,name, filename=None, **kwargs):
-        kwargs['type'] = 'thermal'
+class MetalMeshFilter(FilterModel):
+    def __init__(self,name, filename=None, thickness=2.18, **kwargs):
+        kwargs['type'] = 'metalmesh'
         kwargs['abs_filename'] = 'poly_abs.txt'
-        super(ThermalFilter,self).__init__(name, filename=filename, **kwargs)
+        super(MetalMeshFilter,self).__init__(name, filename=filename,
+                                             thickness=thickness, **kwargs)
 
 class NylonFilter(FilterModel):
     def __init__(self,thickness, wavelength, a=None, b=None, alt=False,
@@ -309,20 +312,205 @@ class Quartz(Cirlex):
             self.trans = threshold(trans,low=t_min,high=t_max)
         return self.trans
 
+###########################################
+# New approach for easier debugging
+# Treat each elementer (filter, temperature stage, etc) as a radiative thing
+# Calculate incident power from any one to any other
+# Catalogue transmitted/reflected/absorbed terms independently
+###########################################
+
+class RadiativeElement(object):
+    
+    def __init__(self, name, temperature=None, frequency=None,
+                 bb=0, trans=1.0, emis=0.0, ref=0.0, incident=None,
+                 **kwargs):
+        self.name = name
+        self.temperature = temperature
+        self.frequency = frequency
+        if frequency is not None and temperature is not None:
+            self.bb = blackbody(frequency, temperature)
+        else:
+            self.bb = bb
+        self.trans = trans
+        self.emis = emis
+        self.ref = ref
+        if incident is not None: self.propagate(incident)
+    
+    def propagate(self,incident=None):
+        if self.checkinc(incident): return
+        # get spectra
+        tloc = self.get_trans()
+        eloc = self.get_emis()
+        rloc = self.get_ref()
+        bb = self.bb
+        # initialize
+        self.itrans_list = []
+        self.itrans = 0.0
+        self.iabs_list = []
+        self.iabs = 0.0
+        self.iref_list = []
+        self.iref = 0.0
+        if hasattr(self,'incident'):
+            # loop over all incident power sources
+            ilist = self.incident.get_itrans_list()
+            if len(ilist):
+                # transmitted through this element
+                self.itrans_list = [(iname,ii*tloc) for iname,ii in ilist]
+                # absorbed by this element
+                if not np.all(eloc==0):
+                    self.iabs_list = [(iname,ii*eloc) for iname,ii in ilist]
+                # reflected off this element
+                if not np.all(rloc==0):
+                    self.iref_list = [('%s, %s ref' % (iname,self.name),ii*rloc)
+                                      for iname,ii in ilist]
+        # add reemitted power to transmitted sources
+        if not ( np.all(bb==0) or np.all(eloc==0) ):
+            self.itrans_list.append(('%s emis' % self.name, bb*eloc))
+        # total up
+        if len(self.itrans_list):
+            self.itrans = np.sum([x[1] for x in self.itrans_list],axis=0)
+        if len(self.iabs_list):
+            self.iabs = np.sum([x[1] for x in self.iabs_list],axis=0)
+        if len(self.iref_list):
+            self.iref = np.sum([x[1] for x in self.iref_list],axis=0)
+    
+    def checkinc(self,incident):
+        if incident is None:
+            if not hasattr(self,'incident'):
+                raise ValueError,'missing incident stage!'
+            incident = self.incident
+        if not isinstance(incident, RadiativeElement):
+            raise TypeError,'incident must be an instance of RadiativeElement'
+        if hasattr(self,'incident') and \
+                incident.get_itrans() == self.incident.get_itrans():
+            return True
+        self.incident = incident
+        return False
+        
+    def checkprop(self,attr=None,incident=None):
+        if attr is None or not hasattr(self,attr):
+            self.propagate(incident)
+            
+    def get_trans(self):
+        """Transmission spectrum"""
+        return self.trans
+    
+    def get_emis(self):
+        """Emission spectrum"""
+        return self.emis
+    
+    def get_ref(self):
+        """Reflection spectrum"""
+        return self.ref
+    
+    def get_itrans(self,incident=None):
+        """Transmitted power, given incident stage"""
+        self.checkprop('itrans', incident)
+        return self.itrans
+    
+    def get_itrans_list(self,incident=None):
+        """Transmitted power broken down into components"""
+        self.checkprop('itrans_list', incident)
+        return self.itrans_list
+    
+    def get_iabs(self,incident=None):
+        """Absorbed power, given incident stage"""
+        self.checkprop('iemis', incident)
+        return self.iemis
+    
+    def get_iabs_list(self,incident=None):
+        """Absorbed power broken down into components"""
+        self.checkprop('iabs_list', incident)
+        return self.iabs_list
+    
+    def get_iref(self, incident=None):
+        """Reflected power, given incident stage"""
+        self.checkprop('iref', incident)
+        return self.iref
+    
+    def get_iref_list(self,incident=None):
+        """Reflected power broken down into components"""
+        self.checkprop('iref_list', incident)
+        return self.iref_list
+        
+class FilterElement(RadiativeElement):
+    def __init__(self, name, filt, **kwargs):
+        super(FilterElement,self).__init__(name, **kwargs)
+        self.filter = filt
+        self.trans = filt.get_trans()
+        self.emis = filt.get_emis()
+        self.ref = filt.get_ref()
+
+class RadiativeStack(RadiativeElement):
+    
+    def __init__(self, name, elements, incident=None, **kwargs):
+        super(RadiativeElement,self).__init__(name, **kwargs)
+        self.elements = elements
+        self.nel = len(elements)
+        if incident is not None: self.propagate(incident)
+    
+    def propagate(self,incident=None):
+        if self.checkinc(incident): return
+        curinc = incident
+        self.iabs_list = []
+        self.trans = 1.0
+        self.emis = 0.0
+        self.ref = 0.0
+        for E in self.elements:
+            # propagate incident power to next element
+            E.propagate(curinc)
+            # get spectra
+            tcur = E.get_trans()
+            ecur = E.get_emis()
+            rcur = E.get_ref()
+            # update absorbed power sourcs
+            self.iabs_list.append(E.get_iabs_list())
+            # update reflected power sources
+            # NB: totally reflected power is transmitted twice through previous elements
+            rlist = [(rname,rr*self.trans) for rname,rr in E.get_iref_list()]
+            self.iref_list.append(rlist)
+            self.ref += rcur * self.trans * self.trans
+            # emissivity
+            self.emis = self.emis * tcur + ecur
+            # transmission
+            self.trans *= tcur
+            # proceed to next element
+            curinc = E
+        # update transmitted power sources
+        # NB: these have been propagated through all elements
+        self.itrans_list = curinc.get_itrans_list()
+        # total up
+        self.itrans = np.sum(self.itrans_list,axis=0)
+        self.iabs = np.sum(self.iabs_list,axis=0)
+        self.iref = np.sum(self.iref_list,axis=0)
+        
+    def get_trans(self):
+        """Transmission spectrum"""
+        self.checkprop()
+        return self.trans
+    
+    def get_emis(self):
+        """Emission spectrum"""
+        self.checkprop()
+        return self.emis
+    
+    def get_ref(self):
+        """Reflection spectrum"""
+        self.checkprop()
+        return self.ref
+
+###########################################
+
 class SpiderRadiativeModel(object):
     
     # extremal values for Ade filters and nylon
-    # _T_HP_MIN = 1e-8
-    # _T_SH_MIN = 1e-8
-    # _E_HP_MAX = 3e-2
-    # _E_SH_MAX = 1e-3
-    # _NY_MIN = 1e-8
-    _T_HP_MIN = None
-    _T_SH_MIN = None
-    _E_HP_MAX = None
-    _E_SH_MAX = None
-    _NY_MIN = None
+    _T_HP_MIN = 0
+    _T_SH_MIN = 0
+    _E_HP_MAX = 1
+    _E_SH_MAX = 1
+    _NY_MIN = 0
     
+    # frequency above which the sky is a simple 273K blackbody
     _MAX_FATMOS = 400.0
     # emissivity assumed for 273K atmosphere beyond 1 THz
     _ATMOS_EMIS = 1e-1
@@ -441,35 +629,35 @@ class SpiderRadiativeModel(object):
                                t_min=self._T_SH_MIN,
                                e_max=self._E_SH_MAX,
                                norm=norm),
-            '12icm': ThermalFilter('12icm',
-                                   'spider_filters_w1078_12icm.txt',
-                                   wavelength=self.wavelength,
-                                   t_min=self._T_HP_MIN,
-                                   e_max = self._E_HP_MAX,
-                                   norm=norm),
-            '7icm': ThermalFilter('7icm','spider_filters_w1522_7icm.txt',
-                                  wavelength=self.wavelength,
-                                  t_min=self._T_HP_MIN,
-                                  e_max = self._E_HP_MAX,
-                                  norm=norm),
-            '4icm': ThermalFilter('4icm','spider_filters_4icm.txt',
-                                  wavelength=self.wavelength,
-                                  t_min=self._T_HP_MIN,
-                                  e_max = self._E_HP_MAX,
-                                  norm=norm),
-            '6icm': ThermalFilter('6icm','spider_filters_6icm.txt',
-                                  wavelength=self.wavelength,
-                                  t_min=self._T_HP_MIN,
-                                  e_max = self._E_HP_MAX,
-                                  norm=norm),
-            '10icm': ThermalFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
-                                   wavelength=self.wavelength,
-                                   t_min=self._T_HP_MIN,
-                                   e_max = self._E_HP_MAX),
-            '18icm': ThermalFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
-                                   wavelength=self.wavelength,
-                                   t_min=self._T_HP_MIN,
-                                   e_max = self._E_HP_MAX),
+            '12icm': MetalMeshFilter('12icm',
+                                     'spider_filters_w1078_12icm.txt',
+                                     wavelength=self.wavelength,
+                                     t_min=self._T_HP_MIN,
+                                     e_max = self._E_HP_MAX,
+                                     thickness=2.18, norm=norm),
+            '7icm': MetalMeshFilter('7icm','spider_filters_w1522_7icm.txt',
+                                    wavelength=self.wavelength,
+                                    t_min=self._T_HP_MIN,
+                                    e_max = self._E_HP_MAX,
+                                    thickness=2.18, norm=norm),
+            '4icm': MetalMeshFilter('4icm','spider_filters_4icm.txt',
+                                    wavelength=self.wavelength,
+                                    t_min=self._T_HP_MIN,
+                                    e_max = self._E_HP_MAX,
+                                    thickness=2.18, norm=norm),
+            '6icm': MetalMeshFilter('6icm','spider_filters_6icm.txt',
+                                    wavelength=self.wavelength,
+                                    t_min=self._T_HP_MIN,
+                                    e_max = self._E_HP_MAX,
+                                    thickness=2.18, norm=norm),
+            '10icm': MetalMeshFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
+                                     wavelength=self.wavelength,
+                                     t_min=self._T_HP_MIN,
+                                     thickness=2.18, e_max = self._E_HP_MAX),
+            '18icm': MetalMeshFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
+                                     wavelength=self.wavelength,
+                                     t_min=self._T_HP_MIN,
+                                     thickness=2.18, e_max = self._E_HP_MAX),
             'nylon': NylonFilter(2.38,
                                  wavelength=self.wavelength,
                                  t_min=self._NY_MIN,
@@ -494,10 +682,10 @@ class SpiderRadiativeModel(object):
             t_sky = np.append(np.insert(yout,0,0),0)
         f_sky = threshold(f_sky,low=1e-12)
         t_sky = threshold(t_sky,low=1e-12)
-        Inu_atmos = bb(f_sky,t_sky)
+        Inu_atmos = blackbody(f_sky,t_sky)
         self.Inu_atmos = np.where(
             self.frequency>fmax,
-            emax*bb(self.frequency,273.0),
+            emax*blackbody(self.frequency,273.0),
             np.interp(self.frequency,f_sky,Inu_atmos))
         return self.Inu_atmos
     
@@ -521,12 +709,12 @@ class SpiderRadiativeModel(object):
         res = self.get_param('res',kwargs.pop('res',1000))
         fcent = self.get_param('fcent',kwargs.pop('fcent',148))
         if fcent == 148:
-            self.update_params(
-                spectfile=os.path.join(self.get_param('datdir'),
-                                       'spectrum_150ghz.dat'))
             # self.update_params(
             #     spectfile=os.path.join(self.get_param('datdir'),
-            #                            '145GHzSpectrum.dat'))
+            #                            'spectrum_150ghz.dat'))
+            self.update_params(
+                spectfile=os.path.join(self.get_param('datdir'),
+                                       '145GHzSpectrum.dat'))
         elif fcent == 94:
             self.update_params(
                 spectfile=os.path.join(self.get_param('datdir'),
@@ -555,7 +743,70 @@ class SpiderRadiativeModel(object):
         self.load_spectrum()
         self.load_filters()
         if not self._initialized: self._initialized = True
-    
+
+    def run_new(self,filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
+                                   'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
+                                   '4k':['10icm','nylon'],
+                                   '2k':['7icm'],
+                                   },
+                tag=None,plot=False,interactive=False):
+        
+        figdir = os.path.join(self.params['figdir'],tag)
+        if not os.path.exists(figdir):
+            os.mkdir(figdir)
+        
+        col = {'sky':'b',
+               'vcs2':'g',
+               'vcs1':'r',
+               '4k':'orange',
+               '2k':'m',
+               'subk':'c'}
+        fs = (8,5)
+        
+        if not args.plot: interactive=False
+        
+        freq = self.frequency
+        wlen = self.wavelength
+        idx = self.id_band
+        from scipy.constants import c
+        conv = (c/freq)**2*1.e-9
+        npts = len(wlen)
+        
+        ### TOTAL LOADING
+        
+        Inu_atmos = self.Inu_atmos
+        t = self.spectrum
+        
+        window_trans = self.params['window_trans'] * \
+            (freq/self.params['fcent'])**self.params['window_beta']
+        window_trans = threshold(window_trans,high=1.0)
+        Inu_win = window_trans*blackbody(freq,self.params['Twin'])
+        
+        bb_2k = blackbody(freq,self.params['t2k'])
+        bb_4k = blackbody(freq,self.params['t4k'])
+        bb_vcs1 = blackbody(freq,self.params['tvcs1'])
+        bb_vcs2 = blackbody(freq,self.params['tvcs2'])
+        bb_sky = (blackbody(freq,self.params['tsky'])*self.params['esky']+
+                  self.params['atmos']*(Inu_atmos+Inu_win))
+        Rsky = RadiativeElement('Sky', bb=bb_sky)
+        
+        def FEL(stage,bb):
+            return stage.upper(), [FilterElement('%s %s' % (stage.upper(),f),
+                                                 self.filters[f], bb=bb)
+                                   for f in filter_stack[stage]]
+        
+        Rvcs2 = RadiativeStack(*FEL('vcs2', bb_vcs2))
+        Rvcs1 = RadiativeStack(*FEL('vcs1', bb_vcs1))
+        R4k = RadiativeStack(*FEL('4k', bb_4k))
+        R2k = RadiativeStack(*FEL('2k', bb_2k))
+        Rsubk = RadiativeElement('sub-K', trans=0,
+                                 emis=e_subk, ref=1-e_subk)
+        Rdet = RadiativeElement('det', trans=t)
+        
+        # assemble all temperature stages
+        Rtot = RadiativeStack('TOTAL', [Rvcs2, Rvcs1, R4k, R2k])
+        # propagate the sky through the stack
+        Rtot.propagate(Rsky)
     
     def calc_loading(self, stage, i_in, bb_out):
         """
@@ -579,6 +830,7 @@ class SpiderRadiativeModel(object):
             a_in += i_out*eloc # absorbed power (assume e=a)
             r_in += i_out*rloc # reflected power
             i_out = i_out*tloc + bb_out*eloc # transmitted/emitted power
+            # i_out = i_out*(tloc + eloc)
             trans *= tloc
             emis = emis*tloc + eloc
             # emis += eloc
@@ -632,13 +884,13 @@ class SpiderRadiativeModel(object):
         window_trans = self.params['window_trans'] * \
             (freq/self.params['fcent'])**self.params['window_beta']
         window_trans = threshold(window_trans,high=1.0)
-        Inu_win = window_trans*bb(freq,self.params['Twin'])
+        Inu_win = window_trans*blackbody(freq,self.params['Twin'])
         
-        bb_2k = bb(freq,self.params['t2k'])
-        bb_4k = bb(freq,self.params['t4k'])
-        bb_vcs1 = bb(freq,self.params['tvcs1'])
-        bb_vcs2 = bb(freq,self.params['tvcs2'])
-        bb_sky = (bb(freq,self.params['tsky'])*self.params['esky']+
+        bb_2k = blackbody(freq,self.params['t2k'])
+        bb_4k = blackbody(freq,self.params['t4k'])
+        bb_vcs1 = blackbody(freq,self.params['tvcs1'])
+        bb_vcs2 = blackbody(freq,self.params['tvcs2'])
+        bb_sky = (blackbody(freq,self.params['tsky'])*self.params['esky']+
                   self.params['atmos']*(Inu_atmos+Inu_win))
         
         i_vcs2 = bb_sky
