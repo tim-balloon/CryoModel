@@ -923,7 +923,7 @@ class RadiativeStack(RadiativeElement):
     
 ###########################################
 
-class SpiderRadiativeModel(object):
+class RadiativeModel(object):
     
     # frequency above which the sky is a simple 273K blackbody
     _MAX_FATMOS = 400.0
@@ -935,14 +935,14 @@ class SpiderRadiativeModel(object):
         self._initialized = False
         profile = kwargs.pop('profile',None)
         self.verbose = kwargs.pop('verbose', False)
-        self._set_defaults(**kwargs)
+        self.set_defaults(**kwargs)
         if profile is not None:
             self.load_profile(profile)
         self.set_band(**kwargs)
         # self.pretty_print_params()
         self._reload()
         
-    def _set_defaults(self,**kwargs):
+    def set_defaults(self,**kwargs):
         # temperatures
         self.params['tsky'] = kwargs.pop('tsky',2.73)
         self.params['esky'] = kwargs.pop('esky',1.0)
@@ -1300,7 +1300,8 @@ if __name__ == "__main__":
     
     import argparse as ap
     P = ap.ArgumentParser(add_help=True)
-    P.add_argument('model',nargs='?',default=1,type=int)
+    P.add_argument('model',nargs='?',default=1,type=int,
+                   help='preset model number (see source)')
     P.add_argument('-i','--interactive',default=False,
                    action='store_true',help='show plots')
     P.add_argument('-p','--plot',default=False,
@@ -1414,7 +1415,7 @@ if __name__ == "__main__":
     else:
         raise ValueError,'unrecognized model number %d' % args.model
         
-    S = SpiderRadiativeModel(**opts)
-    S.run(filter_stack=filter_stack, tag=tag,
+    M = RadiativeModel(**opts)
+    M.run(filter_stack=filter_stack, tag=tag,
           plot=args.plot, interactive=args.interactive,
           summary=args.summary)
