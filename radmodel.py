@@ -378,13 +378,13 @@ class RadiativeElement(object):
     def __init__(self, name, temperature=None, frequency=None,
                  bb=0, trans=1.0, abs=0.0, ref=0.0, incident=None,
                  wavelength=None, aperture=None, area=None,
-                 single_moded=False, band=None, **kwargs):
+                 antenna=False, band=None, **kwargs):
         print 'Initializing element',name
         self.name = name
         self.temperature = temperature
         self.frequency = frequency
         self.wavelength = wavelength
-        self.single_moded = single_moded
+        self.antenna = antenna
         self.band = band
         if frequency is not None and temperature is not None:
             self.bb = blackbody(frequency, temperature)
@@ -455,10 +455,10 @@ class RadiativeElement(object):
     def results(self, filename=None, mode='w', display=True):
         if isarr(self.frequency):
             freq = self.frequency
-            if self.single_moded:
+            if self.antenna:
                 from scipy.constants import c
                 conv = np.power(c/freq,2)*1e-9
-            else: conv = self.area*1e9
+            else: conv = self.area*np.pi*1e9 # hemispherical scattering!
             self.itrans_int = integrate(conv*self.itrans, freq, idx=self.band)
             self.iabs_int = integrate(conv*self.iabs, freq, idx=self.band)
             self.iref_int = integrate(conv*self.iref, freq, idx=self.band)
@@ -957,7 +957,7 @@ class SpiderRadiativeModel(object):
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
         
         # nylon conductivity
-        self.params['g_nylon'] = 3e-5 # W/K
+        self.params['g_nylon'] = 1e-4 # W/K
         
         # aperture diameter
         self.params['aperture'] = 0.3
@@ -1226,7 +1226,7 @@ class SpiderRadiativeModel(object):
         
         # detector loading with bandpass
         Rdet = RadiativeElement('Det', trans=t, abs=eta*t,
-                                single_moded=True, band=self.id_band2)
+                                antenna=True, band=self.id_band2)
         
         # assemble the whole stack and propagate the sky through it
         self.stack = RadiativeStack('TOTAL',
