@@ -376,8 +376,10 @@ class RadiativeElement(object):
     def __init__(self, name, temperature=None, frequency=None,
                  bb=0, trans=1.0, abs=0.0, ref=0.0, incident=None,
                  wavelength=None, aperture=None, area=None,
-                 antenna=False, band=None, **kwargs):
-        print 'Initializing element',name
+                 antenna=False, band=None, verbose=False, **kwargs):
+        self.verbose = verbose
+        if self.verbose:
+            print 'Initializing element',name
         self.name = name
         self.temperature = temperature
         self.frequency = frequency
@@ -400,7 +402,13 @@ class RadiativeElement(object):
     
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
-        print 'Propagating to', self.name
+        
+        if self.incident:
+            self.verbose = self.incident.verbose
+            
+        if self.verbose:
+            print 'Propagating to', self.name
+            
         # get spectra
         tloc = self.get_trans()
         eloc = self.get_abs()
@@ -607,26 +615,37 @@ class RadiativeElement(object):
     def _plot(self, spectra, x=None, prefix='', suffix='',
               xlim=None, ylim=None, xscale='log', yscale='log',
               **kwargs):
-        print 'Plotting', self.name, suffix.replace('_','')
+        
+        if self.verbose:
+            print 'Plotting', self.name, suffix.replace('_','')
         
         import pylab
         fig = kwargs.pop('fig', pylab.figure())
         ax = kwargs.pop('ax', pylab.gca())
         
+        line_cycle = ['-','--','-.',':']
+        from matplotlib import rcParams
+        nc = len(rcParams['axes.color_cycle'])
+        
+        line_count = 0
+        
         if x is None: x = self.frequency
-        for v,fmt,lab in spectra:
+        for v,fmt,lab,kw in spectra:
             if isarr(v):
                 if ylim is not None:
                     v = parg(v, min(ylim))
                 if fmt is not None:
-                    ax.plot(x,v,fmt,label=lab)
+                    ax.plot(x,v,fmt,label=lab,**kw)
                 else:
-                    ax.plot(x,v,label=lab)
+                    fmt = line_cycle[int(np.floor(line_count/nc))]
+                    ax.plot(x,v,fmt,label=lab,**kw)
+                    line_count += 1
         
         if not len(ax.get_lines()):
-            print 'No data!'
+            if self.verbose:
+                print 'No data!'
             return
-                    
+        
         ax.set_xscale(xscale)
         ax.set_yscale(yscale)
         ax.set_xlim(xlim)
@@ -651,9 +670,9 @@ class RadiativeElement(object):
         ref = self.get_ref()
         
         spectra = [
-            (trans, '-b', r'$t_{\nu}$'),
-            (ref,   '-g', r'$r_{\nu}$'),
-            (abs,   '-r', r'$a_{\nu}$')
+            (trans, '-b', r'$t_{\nu}$', {}),
+            (ref,   '-g', r'$r_{\nu}$', {}),
+            (abs,   '-r', r'$a_{\nu}$', {})
             ]
         self._plot(spectra, suffix='_coeff', ylabel='Coefficient', **kwargs)
     
@@ -669,35 +688,34 @@ class RadiativeElement(object):
         iabs, ianorm = self.get_norm_spec('iabs')
         iref, irnorm = self.get_norm_spec('iref')
         
-        if iitnorm: norm = iitnorm
-        elif itnorm: norm = itnorm
-        else: norm = np.max([iibnorm, ibnorm, ianorm, irnorm])
+        norm = max([iitnorm, itnorm])
+        if not norm: norm = np.max([iibnorm, ibnorm, ianorm, irnorm])
         
         spectra = []
         if self.incident:
             iname = self.incident.name.replace(' ',',').upper()
             spectra += [
-                (iitrans/norm, '-b', r'$I_{\nu}^{%s}$' % iname),
+                (iitrans/norm, '-b', r'$I_{\nu}^{%s}$' % iname, {}),
                 ]
             if iibnorm:
                 spectra += [
-                    (iibb/norm,   '--b', r'$B_{\nu}^{%s}$' % iname),
+                    (iibb/norm,   '--b', r'$B_{\nu}^{%s}$' % iname, {}),
                     ]
         spectra += [
-            (itrans/norm,  '-g', r'$I_{\nu}^{T}$'),
+            (itrans/norm,  '-g', r'$I_{\nu}^{T}$', {}),
             ]
         if ibb is not None:
             name = self.name.replace(' ',',').upper()
             spectra += [
-                (ibb/norm,    '--g', r'$B_{\nu}^{%s}$' % name),
+                (ibb/norm,    '--g', r'$B_{\nu}^{%s}$' % name, {}),
                 ]
         if iabs is not None:
             spectra += [
-                (iabs/norm,    '-r', r'$I_{\nu}^{A}$'),
+                (iabs/norm,    '-r', r'$I_{\nu}^{A}$', {}),
                 ]
         if iref is not None:
             spectra += [
-                (iref/norm,    '-c', r'$I_{\nu}^{R}$')
+                (iref/norm,    '-c', r'$I_{\nu}^{R}$', {})
                 ]
         self._plot(spectra, suffix='_spectra', **kwargs)
         
@@ -707,21 +725,20 @@ class RadiativeElement(object):
             iitrans, iitnorm = self.incident.get_norm_spec('itrans')
         else: iitnorm = 0.0
         itrans, itnorm = self.get_norm_spec('itrans')
-        if iitnorm: norm = iitnorm
-        elif itnorm: norm = itnorm
-        else: return
+        norm = max([iitnorm, itnorm])
+        if not norm: return
         
         spectra = []
         if self.incident:
             spectra += [
-                (iitrans/norm, '--k', 'Incident %s' % self.incident.name),
+                (iitrans/norm, '--k', 'Incident %s' % self.incident.name, {'lw':2}),
                 ]
         spectra += [
-            (itrans/norm,  '-k', 'Total Transmitted')
+            (itrans/norm,  '-k', 'Total Transmitted', {'lw':2})
             ]
         for item in self.itrans_list:
             k,v = item
-            spectra += [(v/norm, None, k.split('emis')[0].strip())]
+            spectra += [(v/norm, None, k.split('emis')[0].strip(), {})]
         self._plot(spectra, suffix='_trans',
                    ylabel='Transmitted Intensity [a.u.]',
                    **kwargs)
@@ -735,11 +752,11 @@ class RadiativeElement(object):
         if self.incident:
             iitrans, norm = self.incident.get_norm_spec('itrans')
             spectra += [
-                (iitrans/norm,  '--k', 'Incident %s' % self.incident.name),
+                (iitrans/norm, '--k', 'Incident %s' % self.incident.name, {'lw':2}),
                 ]
         
         spectra += [
-            (iabs/norm,  '-k', 'Total Absorbed'),
+            (iabs/norm,  '-k', 'Total Absorbed', {'lw':2}),
             ]
         for item in self.iabs_list:
             k,v = item
@@ -747,7 +764,7 @@ class RadiativeElement(object):
             tag = tag.strip()
             if hasattr(self,'elements'):
                 tag += ' to ' + rem.split('abs')[-1].strip()
-            spectra += [(v/norm, None, tag)]
+            spectra += [(v/norm, None, tag, {})]
         self._plot(spectra, suffix='_abs', ylabel='Absorbed Intensity [a.u.]',
                    **kwargs)
         
@@ -760,11 +777,11 @@ class RadiativeElement(object):
         if self.incident:
             iitrans, norm = self.incident.get_norm_spec('itrans')
             spectra += [
-                (iitrans/norm,  '--k', 'Incident %s' % self.incident.name),
+                (iitrans/norm, '--k', 'Incident %s' % self.incident.name, {'lw':2}),
                 ]
         
         spectra += [
-            (iref/norm,  '-k', 'Total Reflected'),
+            (iref/norm,  '-k', 'Total Reflected', {'lw':2}),
             ]
         for item in self.iref_list:
             k,v = item
@@ -772,7 +789,7 @@ class RadiativeElement(object):
             tag = tag.strip()
             if hasattr(self,'elements'):
                 tag += ' to ' + rem.split('ref')[-1].strip()
-            spectra += [(v/norm, None, tag)]
+            spectra += [(v/norm, None, tag, {})]
         self._plot(spectra, suffix='_ref', ylabel='Reflected Intensity [a.u.]',
                    **kwargs)
         
@@ -794,7 +811,10 @@ class RadiativeStack(RadiativeElement):
     
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
-        print 'Propagating to', self.name
+        self.verbose = self.incident.verbose
+        
+        if self.verbose:
+            print 'Propagating to', self.name
         
         # inherit some common stuff from the incident source
         self.wavelength = self.incident.wavelength
@@ -914,6 +934,7 @@ class SpiderRadiativeModel(object):
         self.params = dict()
         self._initialized = False
         profile = kwargs.pop('profile',None)
+        self.verbose = kwargs.pop('verbose', False)
         self._set_defaults(**kwargs)
         if profile is not None:
             self.load_profile(profile)
@@ -1151,12 +1172,10 @@ class SpiderRadiativeModel(object):
         bb_sky = blackbody(freq,self.params['tsky'])*self.params['esky']
         if self.params['atmos']:
             bb_sky += self.Inu_atmos
-        
-                       
-        # create element
         Rsky = RadiativeElement('Sky', trans=0.0, abs=1.0, bb=bb_sky,
                                 wavelength=wlen, frequency=freq,
-                                area=area, incident=False)
+                                area=area, incident=False,
+                                verbose=self.verbose)
         elements = [Rsky]
         
         if self.params['window']:
@@ -1178,7 +1197,8 @@ class SpiderRadiativeModel(object):
                 stage.upper(),
                 [FilterElement('%s %s %s' % (stage.upper(),chr(ord('A')+i),f),
                                self.filters[f], bb=bb)
-                 for i,f in enumerate(filter_stack[stage])])
+                 for i,f in enumerate(filter_stack[stage])],
+                )
         
         Rvcs2 = make_stack('vcs2')
         Rvcs1 = make_stack('vcs1')
@@ -1220,8 +1240,10 @@ class SpiderRadiativeModel(object):
                     if 'nylon' not in filter_stack[stage]: continue
                     for EE in E.elements:
                         if 'nylon' in EE.name:
-                            T = self.params['t%s'%stage] + EE.iabs_int / g_nylon
-                            print stage,'nylon T=',T,'K'
+                            dT = EE.iabs_int / g_nylon
+                            print '%-6s' % stage.upper(), \
+                                'nylon dT = %s' % uprint(dT,'K','%8.3f')
+                            T = self.params['t%s'%stage] + dT
                             EE.bb = blackbody(freq, T)
                 self.stack.propagate(force=True)
         
@@ -1258,7 +1280,7 @@ class SpiderRadiativeModel(object):
         for E in self.stack.elements:
             if E.name == 'Det':
                 pargs = dict(
-                    xlim=[0,250],
+                    xlim=[50,250],
                     xscale='linear',
                     )
             else:
@@ -1266,7 +1288,7 @@ class SpiderRadiativeModel(object):
                     xlim=None,
                     xscale='log',
                     )
-            pargs['prefix'] = tag
+            pargs['prefix'] = prefix
             
             E.plot_tra(ylim=[1e-3,1.1], **pargs)
             E.plot_spect(ylim=[1e-8,1.1], **pargs)
@@ -1285,6 +1307,8 @@ if __name__ == "__main__":
                    action='store_true',help='make plots')
     P.add_argument('-s','--summary',default=False,
                    action='store_true',help='print short summary')
+    P.add_argument('-v','--verbose', default=False,
+                   action='store_true',help='verbose mode, for debugging')
     args = P.parse_args()
     
     if not args.plot: args.interactive = False
@@ -1303,7 +1327,7 @@ if __name__ == "__main__":
     #     else:
     #         raise ValueError,'fcent must be 94 or 148 GHz'
     
-    opts = dict(fcent=148, spectfile='145GHzSpectrum.dat')
+    opts = dict(verbose=args.verbose, fcent=148, spectfile='145GHzSpectrum.dat')
     if args.model == 1:
         filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                       'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
