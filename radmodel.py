@@ -1298,10 +1298,109 @@ class RadiativeModel(object):
 
 if __name__ == "__main__":
     
+    models = {
+        1: {
+            'filter_stack': {'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
+                             'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
+                             '4k':['10icm','nylon'],
+                             '2k':['7icm'],
+                             },
+            'tag': 'default'
+            },
+        2: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz'
+            },
+        3: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['18icm','10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_18icm'
+            },
+        4: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['cirlex','10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_hwp'
+            },
+        5: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['quartz','10icm','nylon'],
+                             '2k':['4icm'],
+                             },
+            'tag': '90ghz_hwp',
+            'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
+            },
+        6: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['cirlex','10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_hwp_300k',
+            'opts': dict(tsky=300, atmos=0)
+            },
+        7: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_nonylon'
+            },
+        8: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_300k',
+            'opts': dict(tsky=300, atmos=0)
+            },
+        9: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_300k_nonylon',
+            'opts': dict(tsky=300, atmos=0)
+            },
+        10: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm','nylon'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_nowin',
+            'opts': dict(window=False)
+            },
+        11: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_nowin_nonylon',
+            'opts': dict(window=False)
+            },
+        }
+    
     import argparse as ap
     P = ap.ArgumentParser(add_help=True)
     P.add_argument('model',nargs='?',default=1,type=int,
-                   help='preset model number (see source)')
+                   choices=models.keys(), metavar='num',
+                   help='Preset model number. Choices are: %s' % 
+                   ', '.join('%d (%s)' % (k,v['tag']) for k,v in models.items()))
     P.add_argument('-i','--interactive',default=False,
                    action='store_true',help='show plots')
     P.add_argument('-p','--plot',default=False,
@@ -1314,108 +1413,16 @@ if __name__ == "__main__":
     
     if not args.plot: args.interactive = False
     
-    #     if fcent == 148:
-    #         # self.update_params(
-    #         #     spectfile=os.path.join(self.get_param('datdir'),
-    #         #                            'spectrum_150ghz.dat'))
-    #         self.update_params(
-    #             spectfile=os.path.join(self.get_param('datdir'),
-    #                                    '145GHzSpectrum.dat'))
-    #     elif fcent == 94:
-    #         self.update_params(
-    #             spectfile=os.path.join(self.get_param('datdir'),
-    #                                    'spectrum_90ghz.dat'))
-    #     else:
-    #         raise ValueError,'fcent must be 94 or 148 GHz'
-    
     opts = dict(verbose=args.verbose, fcent=148, spectfile='145GHzSpectrum.dat')
-    if args.model == 1:
-        filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
-                      'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
-                      '4k':['10icm','nylon'],
-                      '2k':['7icm'],
-                      }
-        tag = 'default'
-    elif args.model == 2:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz'
-    elif args.model == 3:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['18icm','10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_18icm'
-    elif args.model == 4:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['cirlex','10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_hwp'
-    elif args.model == 5:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['quartz','10icm','nylon'],
-                      '2k':['4icm'],
-                      }
-        tag = '90ghz_hwp'
-        opts.update(fcent=94, spectfile='spectrum_90ghz.dat')
-    elif args.model == 6:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['cirlex','10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_hwp_300k'
-        opts.update(tsky=300, atmos=0)
-    elif args.model == 7:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm'],
-                      '4k':['10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_nonylon'
-    elif args.model == 8:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_300k'
-        opts.update(tsky=300, atmos=0)
-    elif args.model == 9:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm'],
-                      '4k':['10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_300k_nonylon'
-        opts.update(tsky=300, atmos=0)
-    elif args.model == 10:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm','nylon'],
-                      '4k':['10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_nowin'
-        opts.update(window=False)
-    elif args.model == 11:
-        filter_stack={'vcs2':['c15','c15','c30','c30'],
-                      'vcs1':['c15','c30','c30','12icm'],
-                      '4k':['10icm','nylon'],
-                      '2k':['6icm'],
-                      }
-        tag = '150ghz_nowin_nonylon'
-        opts.update(window=False)
-    else:
+    
+    if args.model not in models:
         raise ValueError,'unrecognized model number %d' % args.model
-        
+    
+    model = models[args.model]
+    if 'opts' in model:
+        opts.update(**model['opts'])
+    
     M = RadiativeModel(**opts)
-    M.run(filter_stack=filter_stack, tag=tag,
+    M.run(filter_stack=model['filter_stack'], tag=model['tag'],
           plot=args.plot, interactive=args.interactive,
           summary=args.summary)
