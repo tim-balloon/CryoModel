@@ -45,7 +45,7 @@ def isarr(v):
     return False
 
 def uprint(v, unit='W', format='%10.6f', cd=False):
-    if not v: return '%s %s' % (format, unit) % v
+    if not v: return '%s  %s' % (format, unit) % v
     udict = {-24  : 'y',  # yocto
               -21 : 'z', # zepto
               -18 : 'a', # atto
@@ -142,7 +142,6 @@ class FilterModel(object):
             if not os.path.isfile(filename):
                 raise OSError,'Cannot find filter file %s' % filename_orig
             self._load_from_file(filename, nfilt=nfilt, norm=norm)
-        self.emis_max = e_max
         self.trans = self._interpt(wavelength=wavelength,
                                    t_min=t_min, t_max=t_max) 
         if type == 'metalmesh':
@@ -291,14 +290,13 @@ class MetalMeshFilter(FilterModel):
 
 class NylonFilter(FilterModel):
     def __init__(self,thickness, wavelength, a=None, b=None, alt=False,
-                 t_min=None, t_max=None, e_max=0.0, norm=False):
+                 t_min=None, t_max=None, norm=False):
         self.name = 'nylon'
         self.wavelength = None
         self.trans = None
         self.type = 'absorber'
         self._load(thickness, wavelength, a=a, b=b, alt=alt,
                    t_min=t_min, t_max=t_max, norm=norm)
-        self.emis_max = e_max
     
     def _load(self,thickness, wavelength, a=None, b=None, alt=False,
               t_min=None, t_max=None, norm=False):
@@ -452,13 +450,13 @@ class RadiativeElement(object):
             self.iref = np.sum([x[1] for x in self.iref_list], axis=0)
         else: self.iref = 0.0
         
-    def results(self, filename=None, mode='w', display=True):
+    def results(self, filename=None, mode='w', display=True, summary=False):
         if isarr(self.frequency):
-            freq = self.frequency
+            freq = self.frequency*1e9 # hz
             if self.antenna:
                 from scipy.constants import c
-                conv = np.power(c/freq,2)*1e-9
-            else: conv = self.area*np.pi*1e9 # hemispherical scattering!
+                conv = np.power(c/freq,2)
+            else: conv = self.area*np.pi # hemispherical scattering!
             self.itrans_int = integrate(conv*self.itrans, freq, idx=self.band)
             self.iabs_int = integrate(conv*self.iabs, freq, idx=self.band)
             self.iref_int = integrate(conv*self.iref, freq, idx=self.band)
@@ -490,43 +488,46 @@ class RadiativeElement(object):
             f = open(filename, mode)
         
         f.write('*'*80+'\n')
-        f.write('Element: %s\n' % self.name)
+        f.write('%-8s: %s\n' % ('Element', self.name))
         if self.incident:
-            f.write('Source: %s\n' % self.incident.name)
-            f.write('Incident power: %s\n' % uprint(self.incident.itrans_int))
+            f.write('%-8s: %s\n' % ('Source', self.incident.name))
+            f.write('%-12s: %s\n' % ('INCIDENT',uprint(self.incident.itrans_int)))
             norm = self.incident.itrans_int
         else: norm = self.itrans_int
-        f.write('Transmitted power: %s %10.3f%%\n' % 
-                (uprint(self.itrans_int), self.itrans_int/norm*100))
-        if self.itrans_int:
-            for x in self.itrans_list_int:
-                f.write('  %-15s %s %10.3f%%\n' % 
-                        (x[0].split('emis')[0].strip(), uprint(x[1]),
-                         x[1]/self.itrans_int*100))
-        f.write('Absorbed power: %s %10.3f%%\n' % 
-                (uprint(self.iabs_int), self.iabs_int/norm*100))
-        if self.iabs_int:
-            for x in self.iabs_list_int:
-                tag,rem = x[0].split('emis')
-                tag = tag.strip()
-                if hasattr(self,'elements'):
-                    tag2 = 'to  %-15s' % rem.split('abs')[-1].strip()
-                else: tag2 = ''
-                f.write('  %-15s%s %s %10.3f%%\n' %
-                        (tag, tag2, uprint(x[1]),
-                         x[1]/self.iabs_int*100))
-        f.write('Reflected power: %s %10.3f%%\n' % 
-                (uprint(self.iref_int), self.iref_int/norm*100))
-        if self.iref_int:
-            for x in self.iref_list_int:
-                tag,rem = x[0].split('emis')
-                tag = tag.strip()
-                if hasattr(self,'elements'):
-                    tag2 = 'to  %-15s' % rem.split('ref')[-1].strip()
-                else: tag2 = ''
-                f.write('  %-15s%s %s %10.3f%%\n' %
-                        (tag, tag2, uprint(x[1]),
-                         x[1]/self.iref_int*100))
+        f.write('%-12s: %s %10.3f%%\n' % 
+                ('TRANSMITTED',uprint(self.itrans_int), self.itrans_int/norm*100))
+        if not summary:
+            if self.itrans_int:
+                for x in self.itrans_list_int:
+                    f.write('  %-15s %s %10.3f%%\n' % 
+                            (x[0].split('emis')[0].strip(), uprint(x[1]),
+                             x[1]/self.itrans_int*100))
+        f.write('%-12s: %s %10.3f%%\n' % 
+                ('ABSORBED',uprint(self.iabs_int), self.iabs_int/norm*100))
+        if not summary:
+            if self.iabs_int:
+                for x in self.iabs_list_int:
+                    tag,rem = x[0].split('emis')
+                    tag = tag.strip()
+                    if hasattr(self,'elements'):
+                        tag2 = 'to  %-15s' % rem.split('abs')[-1].strip()
+                    else: tag2 = ''
+                    f.write('  %-15s%s %s %10.3f%%\n' %
+                            (tag, tag2, uprint(x[1]),
+                             x[1]/self.iabs_int*100))
+        f.write('%-12s: %s %10.3f%%\n' % 
+                ('REFLECTED',uprint(self.iref_int), self.iref_int/norm*100))
+        if not summary:
+            if self.iref_int:
+                for x in self.iref_list_int:
+                    tag,rem = x[0].split('emis')
+                    tag = tag.strip()
+                    if hasattr(self,'elements'):
+                        tag2 = 'to  %-15s' % rem.split('ref')[-1].strip()
+                    else: tag2 = ''
+                    f.write('  %-15s%s %s %10.3f%%\n' %
+                            (tag, tag2, uprint(x[1]),
+                             x[1]/self.iref_int*100))
         
         if filename is not None:
             f.close()
@@ -892,25 +893,17 @@ class RadiativeStack(RadiativeElement):
         for E in self.elements:
             E.plot_ref(**kwargs)
         return super(RadiativeStack, self).plot_ref(**kwargs)
-
-    def results(self, display_this=True, **kwargs):
-        for E in self.elements:
-            E.results(**kwargs)
+    
+    def results(self, display_this=True, summary=False, **kwargs):
+        if not summary or (summary and not display_this):
+            for E in self.elements:
+                E.results(summary=summary, **kwargs)
         if display_this:
-            return super(RadiativeStack, self).results(**kwargs)
+            return super(RadiativeStack, self).results(summary=summary, **kwargs)
     
 ###########################################
 
 class SpiderRadiativeModel(object):
-    
-    # extremal values for Ade filters and nylon
-    _T_HP_MIN = 0
-    _T_SH_MIN = 0
-    _E_HP_MAX = 1
-    _E_SH_MAX = 1
-    _A_HP_MIN = 0.01
-    _A_SH_MIN = 0
-    _NY_MIN = 0
     
     # frequency above which the sky is a simple 273K blackbody
     _MAX_FATMOS = 400.0
@@ -925,7 +918,7 @@ class SpiderRadiativeModel(object):
         if profile is not None:
             self.load_profile(profile)
         self.set_band(**kwargs)
-        self.pretty_print_params()
+        # self.pretty_print_params()
         self._reload()
         
     def _set_defaults(self,**kwargs):
@@ -935,7 +928,7 @@ class SpiderRadiativeModel(object):
         self.params['tvcs1'] = kwargs.pop('tvcs1',35.0)
         self.params['tvcs2'] = kwargs.pop('tvcs2',130.0)
         self.params['t4k'] = kwargs.pop('t4k',5.0)
-        self.params['atmos'] = kwargs.pop('atmos',1.0)
+        self.params['atmos'] = kwargs.pop('atmos',True)
         
         # detector quantum efficiency
         self.params['eta'] = kwargs.pop('eta',0.4)
@@ -943,12 +936,18 @@ class SpiderRadiativeModel(object):
         
         self.params['tsubk'] = kwargs.pop('tsubk',0.3)
         
+        self.params['t_hp_min'] = kwargs.pop('t_hp_min',1e-5)
+        self.params['t_sh_min'] = kwargs.pop('t_sh_min',1e-5)
+        self.params['a_hp_min'] = kwargs.pop('a_hp_min',0.01)
+        self.params['t_ny_min'] = kwargs.pop('t_ny_min',1e-8)
+        
         # window properties
+        self.params['window'] = kwargs.pop('window',True)
         # emissivity at center freq
-        self.params['window_trans'] = kwargs.pop('window_trans',1e-3)
+        self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
         # temperature
-        self.params['Twin'] = kwargs.pop('window_temp',
-                                         kwargs.pop('Twin',273.0))
+        self.params['twin'] = kwargs.pop('window_temp',
+                                         kwargs.pop('twin',273.0))
         # emissivity index
         self.params['window_beta'] = kwargs.pop('window_beta',2)
         
@@ -957,26 +956,29 @@ class SpiderRadiativeModel(object):
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
         
         # nylon conductivity
-        self.params['g_nylon'] = 1e-4 # W/K
+        self.params['g_nylon'] = kwargs.pop('g_nylon',1e-4) # W/K
         
         # aperture diameter
-        self.params['aperture'] = 0.3
+        self.params['aperture'] = kwargs.pop('aperture',0.3) # m
         
-        datdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                              'rad_data')
+        # directories and files
+        thisdir = os.path.dirname(os.path.realpath(__file__))
+        datdir = kwargs.pop('datdir', os.path.join(thisdir, 'rad_data'))
         self.params['datdir'] = datdir
         
-        figdir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                              'figs')
+        figdir = kwargs.pop('figdir', os.path.join(thisdir, 'figs'))
         if not os.path.exists(figdir):
             os.mkdir(figdir)
         self.params['figdir'] = figdir
         
-        self.params['atmfile'] = os.path.join(datdir,'amatm.dat')
-        # self.params['spectfile'] = os.path.join(datdir,
-        #                                         '145GHzSpectrum.dat')
-        self.params['spectfile'] = os.path.join(datdir,
-                                                'spectrum_150ghz.dat')
+        atmfile = kwargs.pop('atmfile', 'amatm.dat')
+        if not os.path.exists(atmfile):
+            atmfile = os.path.join(datdir, atmfile)
+        self.params['atmfile'] = atmfile
+        spectfile = kwargs.pop('spectfile', 'spectrum_150ghz.dat')
+        if not os.path.exists(spectfile):
+            spectfile = os.path.join(datdir, spectfile)
+        self.params['spectfile'] = spectfile
         
     def update_params(self,*args,**kwargs):
         self.params.update(*args,**kwargs)
@@ -1003,79 +1005,65 @@ class SpiderRadiativeModel(object):
             print '%s = %r' % (k,self.params[k])
     
     def pretty_print_params(self):
-        print 'Sky temperature: %.3f, emis: %.3f' % (self.params['tsky'],
-                                                     self.params['esky'])
-        print 'Atmospheric contribution: %.3f' % self.params['atmos']
-        print 'VCS2 temperature: %.3f' % self.params['tvcs2']
-        print 'VCS1 temperature: %.3f' % self.params['tvcs1']
-        print '4K stage temperature: %.3f' % self.params['t4k']
-        print 'Stop temperature: %.3f, throughput: %.3f' % \
-            (self.params['t2k'],self.params['spill_frac'])
-            
+        def tprint(v):
+            return uprint(v, unit='K', format='%8.3f')
+        print '%-20s: %s' % ('Sky temp', tprint(self.params['tsky']))
+        print '%-20s: %8.3f' % ('Sky emissivity', self.params['esky'])
+        print '%-20s: %8.3f' % ('Atmosphere fraction', self.params['atmos'])
+        print '%-20s: %s' % ('VCS2 temp', tprint(self.params['tvcs2']))
+        print '%-20s: %s' % ('VCS1 temp', tprint(self.params['tvcs1']))
+        print '%-20s: %s' % ('4K temp', tprint(self.params['t4k']))
+        print '%-20s: %s' % ('2K temp', tprint(self.params['t2k']))
+        print '%-20s: %8.3f' % ('Stop throughput', self.params['spill_frac'])
+        
     def load_filters(self,norm=True):
+        t_hp_min = self.params['t_hp_min']
+        t_sh_min = self.params['t_sh_min']
+        a_hp_min = self.params['a_hp_min']
+        t_ny_min = self.params['t_ny_min']
         self.filters = {
             'c8-c8': FilterModel('c8-c8','spider_filters_c8-c8.txt',
                                  wavelength=self.wavelength,
-                                 t_min=self._T_SH_MIN,
-                                 e_max = self._E_SH_MAX,
-                                 norm=norm),
+                                 t_min=t_sh_min, norm=norm),
             'c12-c16': FilterModel('c12-c16','spider_filters_c12-c16.txt',
                                    wavelength=self.wavelength,
-                                   t_min=self._T_SH_MIN,
-                                   e_max = self._E_SH_MAX,
-                                   norm=norm),
+                                   t_min=t_sh_min, norm=norm),
             'c15': FilterModel('c15','spider_filters_c15.txt',
                                wavelength=self.wavelength,
-                               t_min=self._T_SH_MIN,
-                               e_max=self._E_SH_MAX,
-                               norm=norm),
+                               t_min=t_sh_min, norm=norm),
             'c16-c25': FilterModel('c16-c25','spider_filters_c16-c25.txt',
                                    wavelength=self.wavelength,
-                                   t_min=self._T_SH_MIN,
-                                   e_max = self._E_SH_MAX,
-                                   norm=norm),
+                                   t_min=t_sh_min, norm=norm),
             'c30': FilterModel('c30','spider_filters_c30.txt',
                                wavelength=self.wavelength,
-                               t_min=self._T_SH_MIN,
-                               e_max=self._E_SH_MAX,
-                               norm=norm),
+                               t_min=t_sh_min, norm=norm),
             '12icm': MetalMeshFilter('12icm',
                                      'spider_filters_w1078_12icm.txt',
                                      wavelength=self.wavelength,
-                                     t_min=self._T_HP_MIN,
-                                     a_min=self._A_HP_MIN,
-                                     e_max = self._E_HP_MAX,
+                                     t_min=t_hp_min, a_min=a_hp_min,
                                      thickness=2.18, norm=norm),
             '7icm': MetalMeshFilter('7icm','spider_filters_w1522_7icm.txt',
                                     wavelength=self.wavelength,
-                                    t_min=self._T_HP_MIN,
-                                    a_min=self._A_HP_MIN,
-                                    e_max = self._E_HP_MAX,
+                                    t_min=t_hp_min, a_min=a_hp_min,
                                     thickness=2.18, norm=norm),
             '4icm': MetalMeshFilter('4icm','spider_filters_4icm.txt',
                                     wavelength=self.wavelength,
-                                    t_min=self._T_HP_MIN, a_min=self._A_HP_MIN,
-                                    e_max = self._E_HP_MAX,
+                                    t_min=t_hp_min, a_min=a_hp_min,
                                     thickness=2.18, norm=norm),
             '6icm': MetalMeshFilter('6icm','spider_filters_6icm.txt',
                                     wavelength=self.wavelength,
-                                    t_min=self._T_HP_MIN, a_min=self._A_HP_MIN,
-                                    e_max = self._E_HP_MAX,
+                                    t_min=t_hp_min, a_min=a_hp_min,
                                     thickness=2.18, norm=norm),
             '10icm': MetalMeshFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
                                      wavelength=self.wavelength,
-                                     t_min=self._T_HP_MIN,
-                                     a_min=self._A_HP_MIN,
-                                     thickness=2.18, e_max = self._E_HP_MAX),
+                                     t_min=t_hp_min, a_min=a_hp_min,
+                                     thickness=2.18),
             '18icm': MetalMeshFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
                                      wavelength=self.wavelength,
-                                     t_min=self._T_HP_MIN,
-                                     a_min=self._A_HP_MIN,
-                                     thickness=2.18, e_max = self._E_HP_MAX),
-            'nylon': NylonFilter(2.38,
-                                 wavelength=self.wavelength,
-                                 t_min=self._NY_MIN,
-                                 norm=norm),
+                                     t_min=t_hp_min, a_min=a_hp_min,
+                                     thickness=2.18),
+            'nylon': NylonFilter(2.38, wavelength=self.wavelength,
+                                 t_min=t_ny_min, norm=norm),
             'cirlex': Cirlex(frequency=self.frequency),
             'quartz': Quartz(frequency=self.frequency),
             }
@@ -1122,19 +1110,6 @@ class SpiderRadiativeModel(object):
     def set_band(self,**kwargs):
         res = self.get_param('res',kwargs.pop('res',1000))
         fcent = self.get_param('fcent',kwargs.pop('fcent',148))
-        if fcent == 148:
-            # self.update_params(
-            #     spectfile=os.path.join(self.get_param('datdir'),
-            #                            'spectrum_150ghz.dat'))
-            self.update_params(
-                spectfile=os.path.join(self.get_param('datdir'),
-                                       '145GHzSpectrum.dat'))
-        elif fcent == 94:
-            self.update_params(
-                spectfile=os.path.join(self.get_param('datdir'),
-                                       'spectrum_90ghz.dat'))
-        else:
-            raise ValueError,'fcent must be 94 or 148 GHz'
         bw = self.get_param('bw',kwargs.pop('bw',0.40))
         bandlo = self.get_param('bandlo',kwargs.pop('bandlo',3))
         bandhi = self.get_param('bandhi',kwargs.pop('bandhi',1000))
@@ -1157,8 +1132,8 @@ class SpiderRadiativeModel(object):
         self.load_spectrum()
         self.load_filters()
         if not self._initialized: self._initialized = True
-
-    def run(self, tag=None, plot=False, interactive=False,
+        
+    def run(self, tag=None, plot=False, interactive=False, summary=False,
             filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                           'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
                           '4k':['10icm','nylon'],
@@ -1167,35 +1142,34 @@ class SpiderRadiativeModel(object):
         
         # abscissa and conversion factors
         freq = self.frequency
-        freqhz = freq*1.e9
         wlen = self.wavelength
-        idx = self.id_band
-        from scipy.constants import c
-        conv = (c/freq)**2
-        npts = len(wlen)
-        
-        ### TOTAL LOADING
         
         # aperture area
         area = np.pi*(self.params['aperture']/2.)**2
         
-        # detector FTS spectrum
-        eta = self.params['eta']
-        t = self.spectrum
+        # the sky
+        bb_sky = blackbody(freq,self.params['tsky'])*self.params['esky']
+        if self.params['atmos']:
+            bb_sky += self.Inu_atmos
         
-        # the sky and window spectrum
-        Inu_atmos = self.Inu_atmos
-        window_trans = self.params['window_trans'] * \
-            (freq/self.params['fcent'])**self.params['window_beta']
-        window_trans = threshold(window_trans,high=1.0)
-        Inu_win = window_trans*blackbody(freq,self.params['Twin'])
-        bb_sky = (blackbody(freq,self.params['tsky'])*self.params['esky']+
-                  self.params['atmos']*(Inu_atmos+Inu_win))
-        
+                       
         # create element
         Rsky = RadiativeElement('Sky', trans=0.0, abs=1.0, bb=bb_sky,
                                 wavelength=wlen, frequency=freq,
                                 area=area, incident=False)
+        elements = [Rsky]
+        
+        if self.params['window']:
+            # window spectrum
+            window_emis = self.params['window_emis'] * \
+                (freq/self.params['fcent'])**self.params['window_beta']
+            window_emis = threshold(window_emis,high=1.0)
+            bb_win = blackbody(freq, self.params['twin'])
+            # Inu_win = window_trans*blackbody(freq,self.params['twin'])
+            window_trans = 1 - window_emis
+            Rwin = RadiativeElement('Window', trans=window_trans,
+                                    abs=window_emis, bb=bb_win)
+            elements.append(Rwin)
         
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage):
@@ -1217,26 +1191,28 @@ class SpiderRadiativeModel(object):
                 RadiativeElement('2K Spillover', bb=R2k.elements[-1].bb,
                                  abs=spill)
                 ]
+        elements += [Rvcs2, Rvcs1, R4k, R2k]
         
         # sub-K loading (use trans=1 to pass through to detector,
         # but bb=0 to ignore loading onto detector)
-        Rsubk = RadiativeElement('sub-K', abs=self.params['esubk'],
-                                 ref=1-self.params['esubk'],
-                                 )
+        Rsubk = RadiativeElement('sub-K', abs=self.params['esubk'])
+        elements.append(Rsubk)
         
         # detector loading with bandpass
+        eta = self.params['eta']
+        t = self.spectrum # detector FTS spectrum
         Rdet = RadiativeElement('Det', trans=t, abs=eta*t,
                                 antenna=True, band=self.id_band2)
+        elements.append(Rdet)
         
         # assemble the whole stack and propagate the sky through it
-        self.stack = RadiativeStack('TOTAL',
-                                    [Rsky, Rvcs2, Rvcs1, R4k, R2k, Rsubk, Rdet],
-                                    incident=Rsky)
+        self.tag = tag
+        self.stack = RadiativeStack('TOTAL', elements, incident=Rsky)
         
         # second pass to account for loading on nylon
         if any(['nylon' in f for f in filter_stack.values()]):
             g_nylon = self.params['g_nylon']
-            if np.isfinite(g_nylon):
+            if g_nylon and np.isfinite(g_nylon):
                 self.stack.results(display=False)
                 for E in self.stack.elements:
                     stage = E.name.lower()
@@ -1250,39 +1226,53 @@ class SpiderRadiativeModel(object):
                 self.stack.propagate(force=True)
         
         # print results
-        self.stack.results(display_this=False)
+        self.results(summary=summary)
         
         # plot results
         if plot:
-            if not interactive:
-                import sys
-                if 'matplotlib.backends' not in sys.modules:
-                    from matplotlib import use
-                    use('agg')
-            
-            figdir = os.path.join(self.params['figdir'],tag)
-            if not os.path.exists(figdir): os.mkdir(figdir)
-            
-            for E in self.stack.elements:
-                if E.name == 'Det':
-                    pargs = dict(
-                        xlim=[0,250],
-                        xscale='linear',
-                        )
-                else:
-                    pargs = dict(
-                        xlim=None,
-                        xscale='log',
-                        )
-                pargs['prefix'] = '%s/%s_' % (figdir, tag)
-                
-                E.plot_tra(ylim=[1e-3,1.1], **pargs)
-                E.plot_spect(ylim=[1e-8,1.1], **pargs)
-                E.plot_trans(ylim=[1e-8,1.1], **pargs)
-                E.plot_abs(ylim=[1e-8,1.1], **pargs)
-                E.plot_ref(ylim=[1e-8,1.1], **pargs)
-        
+            self.plot(tag=tag, interactive=interactive)
         return self.stack
+    
+    def results(self, summary=False):
+        print '*'*80
+        if hasattr(self,'tag') and self.tag:
+            print 'MODEL:',self.tag.replace('_',' ')
+        print '*'*80
+        self.pretty_print_params()
+        self.stack.results(display_this=False, summary=summary)
+    
+    def plot(self, tag=None, interactive=False, **kwargs):
+        if not interactive:
+            import sys
+            if 'matplotlib.backends' not in sys.modules:
+                from matplotlib import use
+                use('agg')
+        
+        figdir = self.params['figdir']
+        prefix = '%s/' % figdir
+        if tag:
+            figdir = os.path.join(figdir,tag)
+            prefix = '%s/%s_' % (figdir, tag)
+        if not os.path.exists(figdir): os.mkdir(figdir)
+        
+        for E in self.stack.elements:
+            if E.name == 'Det':
+                pargs = dict(
+                    xlim=[0,250],
+                    xscale='linear',
+                    )
+            else:
+                pargs = dict(
+                    xlim=None,
+                    xscale='log',
+                    )
+            pargs['prefix'] = tag
+            
+            E.plot_tra(ylim=[1e-3,1.1], **pargs)
+            E.plot_spect(ylim=[1e-8,1.1], **pargs)
+            E.plot_trans(ylim=[1e-8,1.1], **pargs)
+            E.plot_abs(ylim=[1e-8,1.1], **pargs)
+            E.plot_ref(ylim=[1e-8,1.1], **pargs)
 
 if __name__ == "__main__":
     
@@ -1293,17 +1283,27 @@ if __name__ == "__main__":
                    action='store_true',help='show plots')
     P.add_argument('-p','--plot',default=False,
                    action='store_true',help='make plots')
-    # P.add_argument('-t','--tag',default='',action='store',
-    #                help='plotting tag')
-    # P.add_argument('-f','--fcent',default=148,choices=[94,148],
-    #                action='store',type=int,
-    #                help='detector center frequency')
+    P.add_argument('-s','--summary',default=False,
+                   action='store_true',help='print short summary')
     args = P.parse_args()
     
     if not args.plot: args.interactive = False
     
-    opts = dict()
-    fcent = 148
+    #     if fcent == 148:
+    #         # self.update_params(
+    #         #     spectfile=os.path.join(self.get_param('datdir'),
+    #         #                            'spectrum_150ghz.dat'))
+    #         self.update_params(
+    #             spectfile=os.path.join(self.get_param('datdir'),
+    #                                    '145GHzSpectrum.dat'))
+    #     elif fcent == 94:
+    #         self.update_params(
+    #             spectfile=os.path.join(self.get_param('datdir'),
+    #                                    'spectrum_90ghz.dat'))
+    #     else:
+    #         raise ValueError,'fcent must be 94 or 148 GHz'
+    
+    opts = dict(fcent=148, spectfile='145GHzSpectrum.dat')
     if args.model == 1:
         filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                       'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
@@ -1339,7 +1339,7 @@ if __name__ == "__main__":
                       '2k':['4icm'],
                       }
         tag = '90ghz_hwp'
-        fcent = 94
+        opts.update(fcent=94, spectfile='spectrum_90ghz.dat')
     elif args.model == 6:
         filter_stack={'vcs2':['c15','c15','c30','c30'],
                       'vcs1':['c15','c30','c30','12icm','nylon'],
@@ -1347,7 +1347,7 @@ if __name__ == "__main__":
                       '2k':['6icm'],
                       }
         tag = '150ghz_hwp_300k'
-        opts = dict(tsky=300,atmos=0)
+        opts.update(tsky=300, atmos=0)
     elif args.model == 7:
         filter_stack={'vcs2':['c15','c15','c30','c30'],
                       'vcs1':['c15','c30','c30','12icm'],
@@ -1362,7 +1362,7 @@ if __name__ == "__main__":
                       '2k':['6icm'],
                       }
         tag = '150ghz_300k'
-        opts = dict(tsky=300,atmos=0)
+        opts.update(tsky=300, atmos=0)
     elif args.model == 9:
         filter_stack={'vcs2':['c15','c15','c30','c30'],
                       'vcs1':['c15','c30','c30','12icm'],
@@ -1370,17 +1370,27 @@ if __name__ == "__main__":
                       '2k':['6icm'],
                       }
         tag = '150ghz_300k_nonylon'
-        opts = dict(tsky=300,atmos=0)
+        opts.update(tsky=300, atmos=0)
+    elif args.model == 10:
+        filter_stack={'vcs2':['c15','c15','c30','c30'],
+                      'vcs1':['c15','c30','c30','12icm','nylon'],
+                      '4k':['10icm','nylon'],
+                      '2k':['6icm'],
+                      }
+        tag = '150ghz_nowin'
+        opts.update(window=False)
+    elif args.model == 11:
+        filter_stack={'vcs2':['c15','c15','c30','c30'],
+                      'vcs1':['c15','c30','c30','12icm'],
+                      '4k':['10icm','nylon'],
+                      '2k':['6icm'],
+                      }
+        tag = '150ghz_nowin_nonylon'
+        opts.update(window=False)
     else:
         raise ValueError,'unrecognized model number %d' % args.model
-    
-    # print 'Filter stack:',filter_stack
-    print 'Filter stack: %s' % tag
-    print 'VCS2:',filter_stack['vcs2']
-    print 'VCS1:',filter_stack['vcs1']
-    print '4K:',filter_stack['4k']
-    print '2K:',filter_stack['2k']
-    
-    S = SpiderRadiativeModel(fcent=fcent, **opts)
+        
+    S = SpiderRadiativeModel(**opts)
     S.run(filter_stack=filter_stack, tag=tag,
-          plot=args.plot, interactive=args.interactive)
+          plot=args.plot, interactive=args.interactive,
+          summary=args.summary)
