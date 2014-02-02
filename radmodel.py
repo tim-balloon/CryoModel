@@ -1158,12 +1158,12 @@ class SpiderRadiativeModel(object):
         self.load_filters()
         if not self._initialized: self._initialized = True
 
-    def run_new(self, tag=None, plot=False, interactive=False,
-                filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
-                              'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
-                              '4k':['10icm','nylon'],
-                              '2k':['7icm'],
-                              }, **kwargs):
+    def run(self, tag=None, plot=False, interactive=False,
+            filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
+                          'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
+                          '4k':['10icm','nylon'],
+                          '2k':['7icm'],
+                          }, **kwargs):
         
         # abscissa and conversion factors
         freq = self.frequency
@@ -1210,11 +1210,13 @@ class SpiderRadiativeModel(object):
         Rvcs1 = make_stack('vcs1')
         R4k = make_stack('4k')
         R2k = make_stack('2k')
-        R2k.elements += [
-            # hack! spillover from optics sleeve
-            RadiativeElement('2K Spillover', bb=R2k.elements[-1].bb,
-                             abs=self.params['spill_frac'])
-            ]
+        spill = self.params['spill_frac']
+        if spill:
+            R2k.elements += [
+                # hack! spillover from optics sleeve
+                RadiativeElement('2K Spillover', bb=R2k.elements[-1].bb,
+                                 abs=spill)
+                ]
         
         # sub-K loading (use trans=1 to pass through to detector,
         # but bb=0 to ignore loading onto detector)
@@ -1284,336 +1286,6 @@ class SpiderRadiativeModel(object):
                            ylim=[1e-8,1.1], **pargs)
         
         return self.stack
-        
-    def calc_loading(self, stage, i_in, bb_out):
-        """
-        i_in     incident power onto this stage
-        bb_out   stage bb spectrum
-        r_in     reflected power off this stage
-        i_out    incident power onto next stage
-        a_in     power absorbed on this stage
-        trans    net transmission
-        emis     net emission
-        """
-        trans = 1.0
-        emis = 0.0
-        i_out = i_in.copy()
-        a_in = 0.0
-        r_in = 0.0
-        for f in self.filter_stack[stage]:
-            tloc = self.filters[f].get_trans()
-            eloc = self.filters[f].get_emis()
-            rloc = self.filters[f].get_ref()
-            a_in += i_out*eloc # absorbed power (assume e=a)
-            r_in += i_out*rloc # reflected power
-            i_out = i_out*tloc + bb_out*eloc # transmitted/emitted power
-            # i_out = i_out*(tloc + eloc)
-            trans *= tloc
-            emis = emis*tloc + eloc
-            # emis += eloc
-        # a_in = r_in*emis
-        return i_out, r_in, a_in, trans, emis
-    
-    def calc_components(self, bb_comp, t_comp, e_comp):
-        
-        i_comp = []
-        for b,t,e in zip(bb_comp,t_comp,e_comp):
-            i = [ii*t for ii in i_comp[-1]] if len(i_comp) else []
-            i.append(b*e)
-            i_comp.append(i)
-        return i_comp
-    
-    def run(self,filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
-                               'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
-                               '4k':['10icm','nylon'],
-                               '2k':['7icm'],
-                               },
-            tag=None,plot=False,interactive=False):
-        
-        self.filter_stack = filter_stack
-        
-        figdir = os.path.join(self.params['figdir'],tag)
-        if not os.path.exists(figdir):
-            os.mkdir(figdir)
-        
-        col = {'sky':'b',
-               'vcs2':'g',
-               'vcs1':'r',
-               '4k':'orange',
-               '2k':'m',
-               'subk':'c'}
-        fs = (8,5)
-        
-        if not plot: interactive=False
-        
-        freq = self.frequency
-        freqhz = freq*1.e9
-        wlen = self.wavelength
-        idx = self.id_band
-        from scipy.constants import c
-        conv = (c/freqhz)**2
-        npts = len(wlen)
-        
-        ### TOTAL LOADING
-        
-        Inu_atmos = self.Inu_atmos
-        t = self.spectrum
-        
-        window_trans = self.params['window_trans'] * \
-            (freq/self.params['fcent'])**self.params['window_beta']
-        window_trans = threshold(window_trans,high=1.0)
-        Inu_win = window_trans*blackbody(freq,self.params['Twin'])
-        
-        bb_subk = blackbody(freq,self.params['tsubk'])
-        bb_2k = blackbody(freq,self.params['t2k'])
-        bb_4k = blackbody(freq,self.params['t4k'])
-        bb_vcs1 = blackbody(freq,self.params['tvcs1'])
-        bb_vcs2 = blackbody(freq,self.params['tvcs2'])
-        bb_sky = (blackbody(freq,self.params['tsky'])*self.params['esky']+
-                  self.params['atmos']*(Inu_atmos+Inu_win))
-        
-        i_vcs2 = bb_sky
-        i_vcs1, r_vcs2, a_vcs2, t_vcs2, e_vcs2 = \
-            self.calc_loading('vcs2', i_vcs2, bb_vcs2)
-        i_4k, r_vcs1, a_vcs1, t_vcs1, e_vcs1 = \
-            self.calc_loading('vcs1', i_vcs1, bb_vcs1)
-        i_2k, r_4k, a_4k, t_4k, e_4k = self.calc_loading('4k', i_4k, bb_4k)
-        i_subk, r_2k, a_2k, t_2k, e_2k = self.calc_loading('2k', i_2k, bb_2k)
-        e_subk = self.params['esubk']
-        r_subk = i_subk*(1-e_subk)
-        a_subk = i_subk*e_subk
-        
-        bb_comp = [bb_sky, bb_vcs2, bb_vcs1, bb_4k, bb_2k]
-        t_comp = [np.ones_like(wlen), t_vcs2, t_vcs1, t_4k, t_2k]
-        e_comp = [np.ones_like(wlen), e_vcs2, e_vcs1, e_4k, e_2k]
-        i_comp = self.calc_components(bb_comp, t_comp, e_comp)
-        
-        eta = self.params['eta']
-        stack = np.prod(t_comp,axis=0)
-        stack_max = np.max(stack[idx])
-        print ''
-        print 'stack transmission: %.3f' % stack_max
-        print 'quantum efficiency: %.3f' % eta
-        print 'end-to-end transmission: %.3f' % (stack_max*eta)
-        
-        if plot:
-            if not interactive:
-                from matplotlib import use
-                use('agg')
-            import matplotlib.pyplot as plt
-            def savefig(figdir,tag1,tag2):
-                filename = os.path.join(figdir,'%s%s.png' % 
-                                        (tag1,('_%s' % tag2 if tag else '')))
-                plt.savefig(filename, bbox_inches='tight')
-                if not interactive: plt.close()
-                
-            def plot_loading(struct,ax=None,xlabel='Wavelength[$\mu$m]',
-                             ylabel='Intensity',title=None,
-                             xscale='log',yscale='log',
-                             xlim=None,ylim=(1e-8,1),legend=True,ncol=1,
-                             filetag='intensity',figsize=None):
-                if ax is None:
-                    if figsize is None: figsize=fs
-                    plt.figure(figsize=figsize)
-                    ax = plt.gca()
-                for data,linestyle,stage,label in struct:
-                    color = col[stage] if stage in col else stage
-                    ax.plot(wlen,data,linestyle,color=color,label=label)
-                    ax.set_xlabel(xlabel)
-                    ax.set_ylabel(ylabel)
-                    ax.set_title(title)
-                    ax.set_xscale(xscale)
-                    ax.set_yscale(yscale)
-                    ax.set_xlim(xlim)
-                    ax.set_ylim(ylim)
-                    if legend: ax.legend(loc='best',ncol=ncol)
-                savefig(figdir,filetag,tag)
-            
-            plot_loading([(pnorm(bb_sky), '-', 'sky', 'Sky'),
-                          (pnorm(bb_vcs2), '-', 'vcs2', 'VCS2'),
-                          (pnorm(bb_vcs1), '-', 'vcs1', 'VCS1'),
-                          (pnorm(bb_4k), '-', '4k', '4K'),
-                          (pnorm(bb_2k), '-', '2k', '2K'),
-                          (e_vcs2, '--', 'vcs2', 'VCS2 emis'),
-                          (e_vcs1, '--', 'vcs1', 'VCS1 emis'),
-                          (e_4k, '--', '4k', '4K emis'),
-                          (e_2k, '--', '2k', '2K emis')],
-                         title='Emission at each stage',
-                         ncol=2, filetag='emission')
-            
-            plot_loading([(pnorm(i_vcs2), '-', 'vcs2', 'VCS2'),
-                          (pnorm(i_vcs1), '-', 'vcs1', 'VCS1'),
-                          (pnorm(i_4k), '-', '4k', '4K'),
-                          (pnorm(i_2k), '-', '2k', '2K'),
-                          (pnorm(i_subk), '-', 'subk', 'sub-K'),
-                          (t_vcs2, '--', 'vcs2', 'VCS2 trans'),
-                          (t_vcs1, '--', 'vcs1', 'VCS1 trans'),
-                          (t_4k, '--', '4k', '4K trans'),
-                          (t_2k, '--', '2k', '2K trans')],
-                         title='Incident radiation on each stage',
-                         ncol=2, filetag='incident_total')
-            
-            norm = i_vcs2.max()
-            plot_loading([(i_vcs2/norm, '-', 'sky', 'Sky'),
-                          (t_vcs2, '--', 'k', 'VCS2 trans')],
-                         title='Incident radiation on VCS2',
-                         filetag='incident_vcs2')
-            
-            norm = i_vcs1.max()
-            plot_loading([(i_vcs1/norm, '-', 'k', 'Total'),
-                          (i_comp[1][0]/norm, '-', 'sky', 'Sky'),
-                          (i_comp[1][1]/norm, '-', 'vcs2', 'VCS2'),
-                          (t_vcs1, '--', 'k', 'VCS1 trans')],
-                         title='Incident radiation on VCS1',
-                         filetag='incident_vcs1')
-            
-            norm = i_4k.max()
-            plot_loading([(i_4k/norm, '-', 'k', 'Total'),
-                          (i_comp[2][0]/norm, '-', 'sky', 'Sky'),
-                          (i_comp[2][1]/norm, '-', 'vcs2', 'VCS2'),
-                          (i_comp[2][2]/norm, '-', 'vcs1', 'VCS1'),
-                          (t_4k, '--', 'k', '4K trans')],
-                         title='Incident radiation on 4K',
-                         filetag='incident_4k')
-            
-            norm = i_2k.max()
-            plot_loading([(i_2k/norm, '-', 'k', 'Total'),
-                          (i_comp[3][0]/norm, '-', 'sky', 'Sky'),
-                          (i_comp[3][1]/norm, '-', 'vcs2', 'VCS2'),
-                          (i_comp[3][2]/norm, '-', 'vcs1', 'VCS1'),
-                          (i_comp[3][3]/norm, '-', '4k', '4K'),
-                          (t_2k,'--', 'k', '2K trans')],
-                         title='Incident radiation on 2K',
-                         filetag='incident_2k')
-            
-            norm = i_subk.max()
-            plot_loading([(i_subk/norm, '-', 'k', 'Total'),
-                          (i_comp[4][0]/norm, '-', 'sky', 'Sky'),
-                          (i_comp[4][1]/norm, '-', 'vcs2', 'VCS2'),
-                          (i_comp[4][2]/norm, '-', 'vcs1', 'VCS1'),
-                          (i_comp[4][3]/norm, '-', '4k', '4K'),
-                          (i_comp[4][4]/norm, '-', '2k', '2K'),
-                          (t,'--', 'k', 'Det')],
-                         title='Incident radiation on sub-K',
-                         filetag='incident_subk')
-        
-        ### IN-BAND LOADING
-        
-        print ''
-        print 'Composition of in-band loading:'
-        
-        idx2 = self.id_band2
-        
-        spilloverv = t*self.params['spill_frac']*bb_2k*conv
-        spillover = int_tabulated(spilloverv[idx2],x=freqhz[idx2],n=npts)
-        
-        normv = t*i_subk*conv + spilloverv
-        norm = int_tabulated(normv[idx2],x=freqhz[idx2],n=npts)
-        print 'Total incident [pW]: %.6f' % (norm*1.e12)
-        print 'Total absorbed [pW]: %.6f' % (eta*norm*1.e12)
-        
-        if plot:
-            plot_loading([(parg(pnorm(a_vcs2),1e-8), '-', 'vcs2', 'VCS2'),
-                          (pnorm(a_vcs1), '-', 'vcs1', 'VCS1'),
-                          (pnorm(a_4k), '-', '4k', '4K'),
-                          (pnorm(a_2k), '-', '2k', '2K'),
-                          (pnorm(a_subk), '-', 'subk', 'sub-K'),
-                          (parg(pnorm(normv),1e-8), '-', 'k', 'Det')],
-                         # yscale='linear',xscale='linear',
-                         title='Loading on each stage',
-                         filetag='loading')
-        
-        xl = 1e-5
-        
-        if plot:
-            plt.figure(figsize=fs)
-            ax_ib = plt.gca()
-            ax_ib.plot(freq,parg(normv/norm,xl),'k',label='Norm')
-        
-        arg = i_comp[-1][0]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freqhz[idx2],n=npts)
-        sky_loading = q_det/norm*100
-        print 'Sky: \t\t %9.6f %6.2f%%' % (q_det*1e12, sky_loading)
-        if plot:
-            ax_ib.plot(freq,parg(arg/norm,xl),color=col['sky'],label='Sky')
-        
-        arg = i_comp[-1][1]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freqhz[idx2],n=npts)
-        vcs2_loading = q_det/norm*100
-        print 'VCS2: \t\t %9.6f %6.2f%%' % (q_det*1e12, vcs2_loading)
-        if plot:
-            ax_ib.plot(freq,parg(arg/norm,xl),color=col['vcs2'],label='VCS2')
-        
-        arg = i_comp[-1][2]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freqhz[idx2],n=npts)
-        vcs1_loading = q_det/norm*100
-        print 'VCS1: \t\t %9.6f %6.2f%%' % (q_det*1e12, vcs1_loading)
-        if plot:
-            ax_ib.plot(freq,parg(arg/norm,xl),color=col['vcs1'],label='VCS1')
-        
-        arg = i_comp[-1][3]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freqhz[idx2],n=npts)
-        lhe_loading = q_det/norm*100
-        print '4K stage: \t %9.6f %6.2f%%' % (q_det*1e12, lhe_loading)
-        if plot:
-            ax_ib.plot(freq,parg(arg/norm,xl),color=col['4k'],label='4K')
-        
-        arg = i_comp[-1][4]*t*conv
-        q_det = int_tabulated(arg[idx2],x=freqhz[idx2],n=npts)
-        stop_loading = q_det/norm*100
-        print '2K stage: \t %9.6f %6.2f%%' % (q_det*1e12, stop_loading)
-        if plot:
-            ax_ib.plot(freq,parg(arg/norm,xl),color=col['2k'],label='2K')
-        
-        stop_loading = spillover/norm*100
-        print 'Stop spillover:  %9.6f %6.2f%%' % (spillover*1e12, stop_loading)
-        if plot:
-            ax_ib.plot(freq,parg(spilloverv/norm,xl),'--',color=col['2k'],
-                       label='2K spill')
-            
-            ax_ib.set_xlabel('Frequency [GHz]')
-            ax_ib.set_ylabel('Fraction of Total')
-            ax_ib.set_title('In-band Loading')
-            # ax_ib.set_xscale('log')
-            ax_ib.set_yscale('log')
-            ax_ib.set_ylim(xl,5e-2)
-            ax_ib.set_xlim(0,250)
-            ax_ib.legend(loc='best')
-            savefig(figdir,'inband',tag)
-            # if not interactive: plt.close()
-        
-        ### EXCESS LOADING
-        
-        fudge = 1.0
-        area = np.pi*(self.params['aperture']/2.)**2
-        
-        qa_vcs2 = int_tabulated(a_vcs2*area,x=freqhz,n=npts)
-        qa_vcs1 = int_tabulated(a_vcs1*area,x=freqhz,n=npts)
-        qa_4k = int_tabulated(a_4k*area,x=freqhz,n=npts)
-        qa_2k = int_tabulated(a_2k*area,x=freqhz,n=npts)
-        qa_subk = int_tabulated(a_subk*area,x=freqhz,n=npts)
-        
-        qi_vcs2 = int_tabulated(i_vcs2*area,x=freqhz,n=npts)
-        qi_vcs1 = int_tabulated(i_vcs1*area,x=freqhz,n=npts)
-        qi_4k = int_tabulated(i_4k*area,x=freqhz,n=npts)
-        qi_2k = int_tabulated(i_2k*area,x=freqhz,n=npts)
-        qi_subk = int_tabulated(i_subk*area,x=freqhz,n=npts)
-        
-        q_det = int_tabulated((t*i_subk*conv)[idx2],x=freqhz[idx2],n=npts)
-        q_det = eta * (q_det + spillover)
-        
-        print ''
-        print 'Total loading:'
-        print 'Power on VCS2 [W]: \t inc %.6e abs %.6e' % (qi_vcs2, qa_vcs2)
-        print 'Power on VCS1 [W]: \t inc %.6e abs %.6e' % (qi_vcs1, qa_vcs1)
-        print 'Power on 4K [mW]: \t inc %.6e abs %.6e' % (qi_4k*1.e3, qa_4k*1.e3)
-        print 'Power on 2K [mW]: \t inc %.6e abs %.6e' % (qi_2k*1.e3, qa_2k*1.e3)
-        print 'Power on subK [uW]: \t inc %.6e abs %.6e' % (qi_subk*1.e6, qa_subk*1.e6)
-        print 'Power on detector [pW]:  abs %.6e' % (q_det*1.e12)
-        
-        if interactive:
-            plt.show()
-        # keyboard()
 
 if __name__ == "__main__":
     
@@ -1713,7 +1385,5 @@ if __name__ == "__main__":
     print '2K:',filter_stack['2k']
     
     S = SpiderRadiativeModel(fcent=fcent, **opts)
-    # S.run(filter_stack=filter_stack, tag=tag,
-    #       plot=args.plot, interactive=args.interactive)
-    S.run_new(filter_stack=filter_stack, tag=tag,
-              plot=args.plot, interactive=args.interactive)
+    S.run(filter_stack=filter_stack, tag=tag,
+          plot=args.plot, interactive=args.interactive)
