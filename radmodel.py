@@ -1274,16 +1274,13 @@ class SpiderRadiativeModel(object):
                         xlim=None,
                         xscale='log',
                         )
-                E.plot_tra(prefix='%s/%s_' % (figdir, tag),
-                           ylim=[1e-3,1.1], **pargs)
-                E.plot_spect(prefix='%s/%s_' % (figdir, tag),
-                             ylim=[1e-8,1.1], **pargs)
-                E.plot_trans(prefix='%s/%s_' % (figdir, tag),
-                             ylim=[1e-8,1.1], **pargs)
-                E.plot_abs(prefix='%s/%s_' % (figdir, tag),
-                           ylim=[1e-8,1.1], **pargs)
-                E.plot_ref(prefix='%s/%s_' % (figdir, tag),
-                           ylim=[1e-8,1.1], **pargs)
+                pargs['prefix'] = '%s/%s_' % (figdir, tag)
+                
+                E.plot_tra(ylim=[1e-3,1.1], **pargs)
+                E.plot_spect(ylim=[1e-8,1.1], **pargs)
+                E.plot_trans(ylim=[1e-8,1.1], **pargs)
+                E.plot_abs(ylim=[1e-8,1.1], **pargs)
+                E.plot_ref(ylim=[1e-8,1.1], **pargs)
         
         return self.stack
 
