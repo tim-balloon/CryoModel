@@ -1180,12 +1180,15 @@ class RadiativeModel(object):
         
         if self.params['window']:
             # window spectrum
-            window_emis = self.params['window_emis'] * \
-                (freq/self.params['fcent'])**self.params['window_beta']
-            window_emis = threshold(window_emis,high=1.0)
-            bb_win = blackbody(freq, self.params['twin'])
-            # Inu_win = window_trans*blackbody(freq,self.params['twin'])
+            # window_emis = self.params['window_emis'] * \
+            #     (freq/self.params['fcent'])**self.params['window_beta']
+            # window_emis = threshold(window_emis,high=1.0)
+            Fwin = MetalMeshFilter('window', fcent=freq.max(), width=0,
+                                   amp=1.0, wavelength=wlen,
+                                   thickness=3.175)
+            window_emis = Fwin.get_emis()
             window_trans = 1 - window_emis
+            bb_win = blackbody(freq, self.params['twin'])
             Rwin = RadiativeElement('Window', trans=window_trans,
                                     abs=window_emis, bb=bb_win)
             elements.append(Rwin)
