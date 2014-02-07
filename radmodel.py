@@ -1396,6 +1396,15 @@ if __name__ == "__main__":
             'tag': '150ghz_nowin_nonylon',
             'opts': dict(window=False)
             },
+        12: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm'],
+                             '4k':['10icm','nylon'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_nonylon_ULDB',
+            'opts': dict(tsky=2.73, tvcs1=38, tvcs2 = 57)
+            },
         }
     
     import argparse as ap
