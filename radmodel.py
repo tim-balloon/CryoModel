@@ -125,7 +125,7 @@ def blackbody(f,t):
 class FilterModel(object):
     def __init__(self,name, filename=None, nfilt=1, fcent=None, width=None,
                  amp=None, wavelength=None, t_min=None, t_max=None,
-                 e_max=0.0, norm=False, type='shader', abs_filename=None,
+                 norm=False, type='reflector', abs_filename=None,
                  thickness=None, a_min=None, a_max=None):
         self.name = name
         self.wavelength = None
@@ -144,7 +144,7 @@ class FilterModel(object):
             self._load_from_file(filename, nfilt=nfilt, norm=norm)
         self.trans = self._interpt(wavelength=wavelength,
                                    t_min=t_min, t_max=t_max) 
-        if type == 'metalmesh':
+        if type == 'partial':
             if abs_filename is None:
                 raise ValueError,'Need filename for absorption data'
             abs_filename_orig = abs_filename
@@ -161,8 +161,7 @@ class FilterModel(object):
         
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
-                                  self.trans - (self.trans + self.abs - 1),
-                                  self.trans)
+                                  1 - self.abs, self.trans)
         
     def _load_from_file(self,filename,nfilt=1,norm=False):
         """
@@ -259,10 +258,10 @@ class FilterModel(object):
         return threshold(a,low=a_min,high=a_max)
 
     def get_emis(self,wavelength=None,t_min=0,t_max=1):
-        if self.type == 'shader':
+        if self.type == 'reflector':
             # return 0.01*(1.0-self.get_trans(wavelength,t_min,t_max))
             return 0.0
-        elif self.type == 'metalmesh':
+        elif self.type == 'partial':
             return self.get_abs(wavelength,t_min,t_max)
         elif self.type == 'absorber':
             return 1.0 - self.get_trans(wavelength,t_min,t_max)
@@ -271,9 +270,9 @@ class FilterModel(object):
     
     def get_ref(self,wavelength=None,t_min=0,t_max=1,
                 a_min=0,a_max=1):
-        if self.type == 'shader':
+        if self.type == 'reflector':
             return 1.0 - self.get_trans(wavelength,t_min,t_max)
-        elif self.type == 'metalmesh':
+        elif self.type == 'partial':
             return 1.0 - self.get_trans(wavelength,t_min,t_max) \
                 - self.get_abs(wavelength,a_min,a_max)
         elif self.type == 'absorber':
@@ -281,12 +280,22 @@ class FilterModel(object):
         else:
             raise KeyError,'unknown filter type %s' % self.type
 
-class MetalMeshFilter(FilterModel):
-    def __init__(self,name, filename=None, thickness=2.18, **kwargs):
-        kwargs['type'] = 'metalmesh'
+class PolyFilter(FilterModel):
+    def __init__(self, name, filename=None, thickness=11, **kwargs):
+        kwargs['type'] = 'partial'
         kwargs['abs_filename'] = 'poly_abs.txt'
-        super(MetalMeshFilter,self).__init__(name, filename=filename,
-                                             thickness=thickness, **kwargs)
+        super(PolyFilter,self).__init__(name, filename,
+                                        thickness=thickness, **kwargs)
+
+class MetalMeshFilter(PolyFilter):
+    def __init__(self,name, filename=None, thickness=2.18, **kwargs):
+        super(MetalMeshFilter,self).__init__(name, filename, thickness,
+                                        **kwargs)
+
+class ShaderFilter(PolyFilter):
+    def __init__(self, name, filename=None, thickness=0.004, **kwargs):
+        super(ShaderFilter,self).__init__(name, filename, thickness,
+                                          **kwargs)
 
 class NylonFilter(FilterModel):
     def __init__(self,thickness, wavelength, a=None, b=None, alt=False,
@@ -366,12 +375,12 @@ class Quartz(Cirlex):
 
 ###########################################
 # New approach for easier debugging
-# Treat each elementer (filter, temperature stage, etc) as a radiative thing
+# Treat each surface (filter, temperature stage, etc) as a radiative thing
 # Calculate incident power from any one to any other
 # Catalogue transmitted/reflected/absorbed terms independently
 ###########################################
 
-class RadiativeElement(object):
+class RadiativeSurface(object):
     
     def __init__(self, name, temperature=None, frequency=None,
                  bb=0, trans=1.0, abs=0.0, ref=0.0, incident=None,
@@ -379,7 +388,7 @@ class RadiativeElement(object):
                  antenna=False, band=None, verbose=False, **kwargs):
         self.verbose = verbose
         if self.verbose:
-            print 'Initializing element',name
+            print 'Initializing surface',name
         self.name = name
         self.temperature = temperature
         self.frequency = frequency
@@ -399,7 +408,7 @@ class RadiativeElement(object):
             self.area = area
         self.incident = incident
         if incident is not None: self.propagate(incident)
-    
+        
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
         
@@ -433,14 +442,14 @@ class RadiativeElement(object):
             # loop over all incident power sources
             ilist = self.incident.get_itrans_list()
             if len(ilist):
-                # transmitted through this element
+                # transmitted through this surface
                 self.itrans_list = [('%s trans %s' % (iname, self.name),
                                      ii*tloc) for iname, ii in ilist]
-                # absorbed by this element
+                # absorbed by this surface
                 if not np.all(eloc==0):
                     self.iabs_list = [('%s abs %s' % (iname, self.name),
                                        ii*eloc) for iname, ii in ilist]
-                # reflected off this element
+                # reflected off this surface
                 if not np.all(rloc==0):
                     self.iref_list = [('%s ref %s' % (iname, self.name),
                                        ii*rloc) for iname, ii in ilist]
@@ -496,7 +505,7 @@ class RadiativeElement(object):
             f = open(filename, mode)
         
         f.write('*'*80+'\n')
-        f.write('%-8s: %s\n' % ('Element', self.name))
+        f.write('%-8s: %s\n' % ('Surface', self.name))
         if self.incident:
             f.write('%-8s: %s\n' % ('Source', self.incident.name))
             f.write('%-12s: %s\n' % ('INCIDENT',uprint(self.incident.itrans_int)))
@@ -517,7 +526,7 @@ class RadiativeElement(object):
                 for x in self.iabs_list_int:
                     tag,rem = x[0].split('emis')
                     tag = tag.strip()
-                    if hasattr(self,'elements'):
+                    if hasattr(self,'surfaces'):
                         tag2 = 'to  %-15s' % rem.split('abs')[-1].strip()
                     else: tag2 = ''
                     f.write('  %-15s%s %s %10.3f%%\n' %
@@ -530,7 +539,7 @@ class RadiativeElement(object):
                 for x in self.iref_list_int:
                     tag,rem = x[0].split('emis')
                     tag = tag.strip()
-                    if hasattr(self,'elements'):
+                    if hasattr(self,'surfaces'):
                         tag2 = 'to  %-15s' % rem.split('ref')[-1].strip()
                     else: tag2 = ''
                     f.write('  %-15s%s %s %10.3f%%\n' %
@@ -546,12 +555,12 @@ class RadiativeElement(object):
                 raise ValueError,'missing incident stage! %s' % self.name
             incident = self.incident
         if incident not in [None, False] and \
-                not isinstance(incident, RadiativeElement):
-            raise TypeError,'incident must be an instance of RadiativeElement'
-        if isinstance(self.incident,RadiativeElement) and \
+                not isinstance(incident, RadiativeSurface):
+            raise TypeError,'incident must be an instance of RadiativeSurface'
+        if isinstance(self.incident,RadiativeSurface) and \
                 np.all(incident.get_itrans() == self.incident.get_itrans()) \
                 and hasattr(self,'itrans'):
-            # print 'Stage %s: incident element %s has already be dealt with!' \
+            # print 'Stage %s: incident surface %s has already be dealt with!' \
             #     % (self.name, incident.name)
             if force:
                 return False
@@ -731,14 +740,26 @@ class RadiativeElement(object):
         spectra = []
         if self.incident:
             spectra += [
-                (iitrans/norm, '--k', 'Incident %s' % self.incident.name, {'lw':2}),
+                (iitrans/norm, '--k', 'Incident from %s' % self.incident.name,
+                 {'lw':2}),
                 ]
         spectra += [
             (itrans/norm,  '-k', 'Total Transmitted', {'lw':2})
             ]
         for item in self.itrans_list:
             k,v = item
-            spectra += [(v/norm, None, k.split('emis')[0].strip(), {})]
+            stage = k.split()[0]
+            if stage == self.name.split()[0]:
+                name = k.split('emis')[0].strip()
+            else:
+                name = k.split()[0]
+            names = [x[2] for x in spectra]
+            if name in names:
+                idx = names.index(name)
+                tup = spectra[idx]
+                spectra[idx] = (tup[0] + v/norm,) + tup[1:]
+            else:
+                spectra += [(v/norm, None, name, {})]
         self._plot(spectra, suffix='_trans',
                    ylabel='Transmitted Intensity [a.u.]',
                    **kwargs)
@@ -752,7 +773,8 @@ class RadiativeElement(object):
         if self.incident:
             iitrans, norm = self.incident.get_norm_spec('itrans')
             spectra += [
-                (iitrans/norm, '--k', 'Incident %s' % self.incident.name, {'lw':2}),
+                (iitrans/norm, '--k', 'Incident from %s' % self.incident.name,
+                 {'lw':2}),
                 ]
         
         spectra += [
@@ -760,11 +782,21 @@ class RadiativeElement(object):
             ]
         for item in self.iabs_list:
             k,v = item
+            stage = k.split()[0]
+            # stage = k.split('abs')[-1].strip().split()[0]
             tag,rem = k.split('emis')
             tag = tag.strip()
-            if hasattr(self,'elements'):
-                tag += ' to ' + rem.split('abs')[-1].strip()
-            spectra += [(v/norm, None, tag, {})]
+            if stage != self.name.split()[0]:
+                tag= tag.split()[0]
+            if hasattr(self,'surfaces'):
+                tag = 'On ' + rem.split('abs')[-1].strip()
+            tags = [x[2] for x in spectra]
+            if tag in tags:
+                idx = tags.index(tag)
+                tup = spectra[idx]
+                spectra[idx] = (tup[0] + v/norm,) + tup[1:]
+            else:
+                spectra += [(v/norm, None, tag, {})]
         self._plot(spectra, suffix='_abs', ylabel='Absorbed Intensity [a.u.]',
                    **kwargs)
         
@@ -777,7 +809,8 @@ class RadiativeElement(object):
         if self.incident:
             iitrans, norm = self.incident.get_norm_spec('itrans')
             spectra += [
-                (iitrans/norm, '--k', 'Incident %s' % self.incident.name, {'lw':2}),
+                (iitrans/norm, '--k', 'Incident from %s' % self.incident.name,
+                 {'lw':2}),
                 ]
         
         spectra += [
@@ -785,27 +818,36 @@ class RadiativeElement(object):
             ]
         for item in self.iref_list:
             k,v = item
+            stage = k.split()[0]
             tag,rem = k.split('emis')
             tag = tag.strip()
-            if hasattr(self,'elements'):
-                tag += ' to ' + rem.split('ref')[-1].strip()
-            spectra += [(v/norm, None, tag, {})]
+            if stage != self.name.split()[0]:
+                tag= tag.split()[0]
+            if hasattr(self,'surfaces'):
+                tag = 'Off ' + rem.split('ref')[-1].strip()
+            tags = [x[2] for x in spectra]
+            if tag in tags:
+                idx = tags.index(tag)
+                tup = spectra[idx]
+                spectra[idx] = (tup[0] + v/norm,) + tup[1:]
+            else:
+                spectra += [(v/norm, None, tag, {})]
         self._plot(spectra, suffix='_ref', ylabel='Reflected Intensity [a.u.]',
                    **kwargs)
         
-class FilterElement(RadiativeElement):
+class FilterSurface(RadiativeSurface):
     def __init__(self, name, filt, **kwargs):
-        super(FilterElement,self).__init__(name, **kwargs)
+        super(FilterSurface,self).__init__(name, **kwargs)
         self.filter = filt
         self.trans = filt.get_trans()
         self.abs = filt.get_emis()
         self.ref = filt.get_ref()
 
-class RadiativeStack(RadiativeElement):
+class RadiativeStack(RadiativeSurface):
     
-    def __init__(self, name, elements, incident=None, **kwargs):
+    def __init__(self, name, surfaces, incident=None, **kwargs):
         super(RadiativeStack, self).__init__(name, **kwargs)
-        self.elements = elements
+        self.surfaces = surfaces
         self.incident = incident
         if incident is not None: self.propagate(incident)
     
@@ -829,31 +871,33 @@ class RadiativeStack(RadiativeElement):
         self.trans = 1.0
         self.abs = 0.0
         self.ref = 0.0
-        for E in self.elements:
-            if E == self.incident:
-                curinc = E
+        for S in self.surfaces:
+            if S == self.incident:
+                curinc = S
                 continue
-            # propagate incident power to next element
-            E.propagate(curinc, force=force)
+            # propagate incident power to next surface
+            S.propagate(curinc, force=force)
             # get spectra
-            tcur = E.get_trans()
-            ecur = E.get_abs()
-            rcur = E.get_ref()
+            tcur = S.get_trans()
+            ecur = S.get_abs()
+            rcur = S.get_ref()
             # update absorbed power sourcs
-            self.iabs_list.extend(E.get_iabs_list())
+            self.iabs_list.extend(S.get_iabs_list())
             # update reflected power sources. NB: totally reflected power is
-            # transmitted twice through previous elements
-            rlist = [(rname, rr*self.trans) for rname,rr in E.get_iref_list()]
+            # transmitted twice through previous surfaces
+            # rlist = [(rname, rr*self.trans) for rname,rr in S.get_iref_list()]
+            rlist = S.get_iref_list()
             self.iref_list.extend(rlist)
-            self.ref += rcur * self.trans * self.trans
+            # self.ref += rcur * self.trans * self.trans
+            self.ref += rcur * self.trans
             # abssivity
             self.abs = self.abs * tcur + ecur
             # transmission
             self.trans *= tcur
-            # proceed to next element
-            curinc = E
+            # proceed to next surface
+            curinc = S
         # update transmitted power sources
-        # NB: these have been propagated through all elements
+        # NB: these have been propagated through all surfaces
         self.itrans_list = curinc.get_itrans_list()
         self.bb = curinc.bb
         # total up
@@ -870,8 +914,8 @@ class RadiativeStack(RadiativeElement):
     def checkinc(self, incident, force=False):
         if incident is None:
             if self.incident is None:
-                if len(self.elements):
-                    self.incident = self.elements[0]
+                if len(self.surfaces):
+                    self.incident = self.surfaces[0]
         return super(RadiativeStack, self).checkinc(incident, force=force)
         
     def get_trans(self):
@@ -890,34 +934,34 @@ class RadiativeStack(RadiativeElement):
         return self.ref
     
     def plot_tra(self, **kwargs):
-        for E in self.elements:
-            E.plot_tra(**kwargs)
+        for S in self.surfaces:
+            S.plot_tra(**kwargs)
         return super(RadiativeStack, self).plot_tra(**kwargs)
     
     def plot_spect(self, **kwargs):
-        for E in self.elements:
-            E.plot_spect(**kwargs)
+        for S in self.surfaces:
+            S.plot_spect(**kwargs)
         return super(RadiativeStack, self).plot_spect(**kwargs)
     
     def plot_trans(self, **kwargs):
-        for E in self.elements:
-            E.plot_trans(**kwargs)
+        for S in self.surfaces:
+            S.plot_trans(**kwargs)
         return super(RadiativeStack, self).plot_trans(**kwargs)
     
     def plot_abs(self, **kwargs):
-        for E in self.elements:
-            E.plot_abs(**kwargs)
+        for S in self.surfaces:
+            S.plot_abs(**kwargs)
         return super(RadiativeStack, self).plot_abs(**kwargs)
     
     def plot_ref(self, **kwargs):
-        for E in self.elements:
-            E.plot_ref(**kwargs)
+        for S in self.surfaces:
+            S.plot_ref(**kwargs)
         return super(RadiativeStack, self).plot_ref(**kwargs)
     
     def results(self, display_this=True, summary=False, **kwargs):
         if not summary or (summary and not display_this):
-            for E in self.elements:
-                E.results(summary=summary, **kwargs)
+            for S in self.surfaces:
+                S.results(summary=summary, **kwargs)
         if display_this:
             return super(RadiativeStack, self).results(summary=summary, **kwargs)
     
@@ -960,12 +1004,16 @@ class RadiativeModel(object):
         self.params['t_hp_min'] = kwargs.pop('t_hp_min',1e-5)
         self.params['t_sh_min'] = kwargs.pop('t_sh_min',1e-5)
         self.params['a_hp_min'] = kwargs.pop('a_hp_min',0.01)
+        self.params['a_sh_min'] = kwargs.pop('a_sh_min',1e-5)
         self.params['t_ny_min'] = kwargs.pop('t_ny_min',1e-8)
         
         # window properties
         self.params['window'] = kwargs.pop('window',True)
         # emissivity at center freq
         self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
+        self.params['window_abs_min'] = kwargs.pop('window_abs_min',1e-3)
+        self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
+        
         # temperature
         self.params['twin'] = kwargs.pop('window_temp',
                                          kwargs.pop('twin',273.0))
@@ -1041,23 +1089,29 @@ class RadiativeModel(object):
         t_hp_min = self.params['t_hp_min']
         t_sh_min = self.params['t_sh_min']
         a_hp_min = self.params['a_hp_min']
+        a_sh_min = self.params['a_sh_min']
         t_ny_min = self.params['t_ny_min']
         self.filters = {
-            'c8-c8': FilterModel('c8-c8','spider_filters_c8-c8.txt',
-                                 wavelength=self.wavelength,
-                                 t_min=t_sh_min, norm=norm),
-            'c12-c16': FilterModel('c12-c16','spider_filters_c12-c16.txt',
-                                   wavelength=self.wavelength,
-                                   t_min=t_sh_min, norm=norm),
-            'c15': FilterModel('c15','spider_filters_c15.txt',
-                               wavelength=self.wavelength,
-                               t_min=t_sh_min, norm=norm),
-            'c16-c25': FilterModel('c16-c25','spider_filters_c16-c25.txt',
-                                   wavelength=self.wavelength,
-                                   t_min=t_sh_min, norm=norm),
-            'c30': FilterModel('c30','spider_filters_c30.txt',
-                               wavelength=self.wavelength,
-                               t_min=t_sh_min, norm=norm),
+            'c8-c8': ShaderFilter('c8-c8','spider_filters_c8-c8.txt',
+                                  wavelength=self.wavelength,
+                                  t_min=t_sh_min, a_min=a_sh_min,
+                                  norm=norm),
+            'c12-c16': ShaderFilter('c12-c16','spider_filters_c12-c16.txt',
+                                    wavelength=self.wavelength,
+                                    t_min=t_sh_min, a_min=a_sh_min,
+                                    norm=norm),
+            'c15': ShaderFilter('c15','spider_filters_c15.txt',
+                                wavelength=self.wavelength,
+                                t_min=t_sh_min, a_min=a_sh_min,
+                                norm=norm),
+            'c16-c25': ShaderFilter('c16-c25','spider_filters_c16-c25.txt',
+                                    wavelength=self.wavelength,
+                                    t_min=t_sh_min, a_min=a_sh_min,
+                                    norm=norm),
+            'c30': ShaderFilter('c30','spider_filters_c30.txt',
+                                wavelength=self.wavelength,
+                                t_min=t_sh_min, a_min=a_sh_min,
+                                norm=norm),
             '12icm': MetalMeshFilter('12icm',
                                      'spider_filters_w1078_12icm.txt',
                                      wavelength=self.wavelength,
@@ -1172,33 +1226,34 @@ class RadiativeModel(object):
         bb_sky = blackbody(freq,self.params['tsky'])*self.params['esky']
         if self.params['atmos']:
             bb_sky += self.Inu_atmos
-        Rsky = RadiativeElement('Sky', trans=0.0, abs=1.0, bb=bb_sky,
+        Rsky = RadiativeSurface('Sky', trans=0.0, abs=1.0, bb=bb_sky,
                                 wavelength=wlen, frequency=freq,
                                 area=area, incident=False,
                                 verbose=self.verbose)
-        elements = [Rsky]
+        surfaces = [Rsky]
         
         if self.params['window']:
             # window spectrum
             # window_emis = self.params['window_emis'] * \
             #     (freq/self.params['fcent'])**self.params['window_beta']
             # window_emis = threshold(window_emis,high=1.0)
-            Fwin = MetalMeshFilter('window', fcent=freq.max(), width=0,
-                                   amp=1.0, wavelength=wlen,
-                                   thickness=3.175)
+            Fwin = PolyFilter('window', fcent=freq.max(), width=0,
+                              amp=1.0, wavelength=wlen,
+                              thickness=self.params['window_thickness'],
+                              a_min=self.params['window_abs_min'])
             window_emis = Fwin.get_emis()
             window_trans = 1 - window_emis
             bb_win = blackbody(freq, self.params['twin'])
-            Rwin = RadiativeElement('Window', trans=window_trans,
+            Rwin = RadiativeSurface('Window', trans=window_trans,
                                     abs=window_emis, bb=bb_win)
-            elements.append(Rwin)
+            surfaces.append(Rwin)
         
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage):
             bb = blackbody(freq,self.params['t%s'%stage])
             return RadiativeStack(
                 stage.upper(),
-                [FilterElement('%s %s %s' % (stage.upper(),chr(ord('A')+i),f),
+                [FilterSurface('%s %s %s' % (stage.upper(),chr(ord('A')+i),f),
                                self.filters[f], bb=bb)
                  for i,f in enumerate(filter_stack[stage])],
                 )
@@ -1209,45 +1264,48 @@ class RadiativeModel(object):
         R2k = make_stack('2k')
         spill = self.params['spill_frac']
         if spill:
-            R2k.elements += [
+            R2k.surfaces += [
                 # hack! spillover from optics sleeve
-                RadiativeElement('2K Spillover', bb=R2k.elements[-1].bb,
+                RadiativeSurface('2K Spillover', bb=R2k.surfaces[-1].bb,
                                  abs=spill)
                 ]
-        elements += [Rvcs2, Rvcs1, R4k, R2k]
+        surfaces += [Rvcs2, Rvcs1, R4k, R2k]
         
         # sub-K loading (use trans=1 to pass through to detector,
         # but bb=0 to ignore loading onto detector)
-        Rsubk = RadiativeElement('sub-K', abs=self.params['esubk'])
-        elements.append(Rsubk)
+        Rsubk = RadiativeSurface('sub-K', abs=self.params['esubk'])
+        surfaces.append(Rsubk)
         
         # detector loading with bandpass
         eta = self.params['eta']
         t = self.spectrum # detector FTS spectrum
-        Rdet = RadiativeElement('Det', trans=t, abs=eta*t,
+        Rband = RadiativeSurface('Bandpass', trans=t,
+                                 antenna=True, band=self.id_band2)
+        surfaces.append(Rband)
+        Rdet = RadiativeSurface('Det', trans=eta, abs=0, ref=1-eta,
                                 antenna=True, band=self.id_band2)
-        elements.append(Rdet)
+        surfaces.append(Rdet)
         
         # assemble the whole stack and propagate the sky through it
         self.tag = tag
-        self.stack = RadiativeStack('TOTAL', elements, incident=Rsky)
+        self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky)
         
         # second pass to account for loading on nylon
         if any(['nylon' in f for f in filter_stack.values()]):
             g_nylon = self.params['g_nylon']
             if g_nylon and np.isfinite(g_nylon):
                 self.stack.results(display=False)
-                for E in self.stack.elements:
-                    stage = E.name.lower()
+                for S in self.stack.surfaces:
+                    stage = S.name.lower()
                     if stage not in filter_stack: continue
                     if 'nylon' not in filter_stack[stage]: continue
-                    for EE in E.elements:
-                        if 'nylon' in EE.name:
-                            dT = EE.iabs_int / g_nylon
+                    for SS in S.surfaces:
+                        if 'nylon' in SS.name:
+                            dT = SS.iabs_int / g_nylon
                             print '%-6s' % stage.upper(), \
                                 'nylon dT = %s' % uprint(dT,'K','%8.3f')
                             T = self.params['t%s'%stage] + dT
-                            EE.bb = blackbody(freq, T)
+                            SS.bb = blackbody(freq, T)
                 self.stack.propagate(force=True)
         
         # print results
@@ -1280,8 +1338,8 @@ class RadiativeModel(object):
             prefix = '%s/%s_' % (figdir, tag)
         if not os.path.exists(figdir): os.mkdir(figdir)
         
-        for E in self.stack.elements:
-            if E.name == 'Det':
+        for S in self.stack.surfaces:
+            if S.name == 'Det':
                 pargs = dict(
                     xlim=[50,250],
                     xscale='linear',
@@ -1293,11 +1351,11 @@ class RadiativeModel(object):
                     )
             pargs['prefix'] = prefix
             
-            E.plot_tra(ylim=[1e-3,1.1], **pargs)
-            E.plot_spect(ylim=[1e-8,1.1], **pargs)
-            E.plot_trans(ylim=[1e-8,1.1], **pargs)
-            E.plot_abs(ylim=[1e-8,1.1], **pargs)
-            E.plot_ref(ylim=[1e-8,1.1], **pargs)
+            S.plot_tra(ylim=[1e-3,1.1], **pargs)
+            S.plot_spect(ylim=[1e-8,1.1], **pargs)
+            S.plot_trans(ylim=[1e-8,1.1], **pargs)
+            S.plot_abs(ylim=[1e-8,1.1], **pargs)
+            S.plot_ref(ylim=[1e-8,1.1], **pargs)
 
 if __name__ == "__main__":
     
