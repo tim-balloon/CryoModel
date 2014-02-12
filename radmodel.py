@@ -162,7 +162,10 @@ class FilterModel(object):
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
                                   1 - self.abs, self.trans)
-        
+    
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self.name)
+    
     def _load_from_file(self,filename,nfilt=1,norm=False):
         """
         Read in filter transmission spectrum
@@ -408,7 +411,10 @@ class RadiativeSurface(object):
             self.area = area
         self.incident = incident
         if incident is not None: self.propagate(incident)
-        
+    
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self.name)
+    
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
         
