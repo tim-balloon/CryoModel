@@ -44,7 +44,7 @@ def isarr(v):
         return True
     return False
 
-def uprint(v, unit='W', format='%10.6f', cd=False):
+def uprint(v, unit='W', format='%12.6f', cd=False):
     if not v: return '%s  %s' % (format, unit) % v
     udict = {-24  : 'y',  # yocto
               -21 : 'z', # zepto
@@ -71,7 +71,7 @@ def uprint(v, unit='W', format='%10.6f', cd=False):
                  })
     
     vlist = np.array(sorted(udict.keys()))
-    lv = np.log10(v)
+    lv = np.log10(np.abs(v))
     if (lv<vlist.min()): idx = 0
     elif (lv>vlist.max()): idx = -1
     else:
@@ -1031,7 +1031,7 @@ class RadiativeModel(object):
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
         
         # nylon conductivity
-        self.params['g_nylon'] = kwargs.pop('g_nylon',1e-4) # W/K
+        self.params['g_nylon'] = kwargs.pop('g_nylon',3e-5) # W/K
         
         # aperture diameter
         self.params['aperture'] = kwargs.pop('aperture',0.3) # m
@@ -1288,7 +1288,7 @@ class RadiativeModel(object):
         Rband = RadiativeSurface('Bandpass', trans=t,
                                  antenna=True, band=self.id_band2)
         surfaces.append(Rband)
-        Rdet = RadiativeSurface('Det', trans=eta, abs=0, ref=1-eta,
+        Rdet = RadiativeSurface('Det', trans=1-eta, abs=eta,
                                 antenna=True, band=self.id_band2)
         surfaces.append(Rdet)
         
@@ -1363,8 +1363,7 @@ class RadiativeModel(object):
             S.plot_abs(ylim=[1e-8,1.1], **pargs)
             S.plot_ref(ylim=[1e-8,1.1], **pargs)
 
-if __name__ == "__main__":
-    
+def main(model_class=RadiativeModel):
     models = {
         1: {
             'filter_stack': {'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
@@ -1489,7 +1488,11 @@ if __name__ == "__main__":
     if 'opts' in model:
         opts.update(**model['opts'])
     
-    M = RadiativeModel(**opts)
+    M = model_class(**opts)
     M.run(filter_stack=model['filter_stack'], tag=model['tag'],
           plot=args.plot, interactive=args.interactive,
           summary=args.summary)
+
+if __name__ == "__main__":
+    
+    main(model_class=RadiativeModel)
