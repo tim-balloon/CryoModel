@@ -284,18 +284,25 @@ class FilterModel(object):
             raise KeyError,'unknown filter type %s' % self.type
 
 class PolyFilter(FilterModel):
-    def __init__(self, name, filename=None, thickness=11, **kwargs):
+    def __init__(self, name, filename=None, thickness=1, **kwargs):
         kwargs['type'] = 'partial'
         kwargs['abs_filename'] = 'poly_abs.txt'
         super(PolyFilter,self).__init__(name, filename,
                                         thickness=thickness, **kwargs)
 
-class MetalMeshFilter(PolyFilter):
+class MylarFilter(FilterModel):
+    def __init__(self, name, filename=None, thickness=1, **kwargs):
+        kwargs['type'] = 'partial'
+        kwargs['abs_filename'] = 'mylar_abs_icm.txt'
+        super(MylarFilter,self).__init__(name, filename,
+                                        thickness=thickness, **kwargs)
+
+class HotPressFilter(PolyFilter):
     def __init__(self,name, filename=None, thickness=2.18, **kwargs):
-        super(MetalMeshFilter,self).__init__(name, filename, thickness,
+        super(HotPressFilter,self).__init__(name, filename, thickness,
                                         **kwargs)
 
-class ShaderFilter(PolyFilter):
+class ShaderFilter(MylarFilter):
     def __init__(self, name, filename=None, thickness=0.004, **kwargs):
         super(ShaderFilter,self).__init__(name, filename, thickness,
                                           **kwargs)
@@ -1118,31 +1125,31 @@ class RadiativeModel(object):
                                 wavelength=self.wavelength,
                                 t_min=t_sh_min, a_min=a_sh_min,
                                 norm=norm),
-            '12icm': MetalMeshFilter('12icm',
-                                     'spider_filters_w1078_12icm.txt',
-                                     wavelength=self.wavelength,
-                                     t_min=t_hp_min, a_min=a_hp_min,
-                                     thickness=2.18, norm=norm),
-            '7icm': MetalMeshFilter('7icm','spider_filters_w1522_7icm.txt',
+            '12icm': HotPressFilter('12icm',
+                                    'spider_filters_w1078_12icm.txt',
                                     wavelength=self.wavelength,
                                     t_min=t_hp_min, a_min=a_hp_min,
                                     thickness=2.18, norm=norm),
-            '4icm': MetalMeshFilter('4icm','spider_filters_4icm.txt',
+            '7icm': HotPressFilter('7icm','spider_filters_w1522_7icm.txt',
+                                   wavelength=self.wavelength,
+                                   t_min=t_hp_min, a_min=a_hp_min,
+                                   thickness=2.18, norm=norm),
+            '4icm': HotPressFilter('4icm','spider_filters_4icm.txt',
+                                   wavelength=self.wavelength,
+                                   t_min=t_hp_min, a_min=a_hp_min,
+                                   thickness=2.18, norm=norm),
+            '6icm': HotPressFilter('6icm','spider_filters_6icm.txt',
+                                   wavelength=self.wavelength,
+                                   t_min=t_hp_min, a_min=a_hp_min,
+                                   thickness=2.18, norm=norm),
+            '10icm': HotPressFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
                                     wavelength=self.wavelength,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm),
-            '6icm': MetalMeshFilter('6icm','spider_filters_6icm.txt',
+                                    thickness=2.18),
+            '18icm': HotPressFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
                                     wavelength=self.wavelength,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm),
-            '10icm': MetalMeshFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
-                                     wavelength=self.wavelength,
-                                     t_min=t_hp_min, a_min=a_hp_min,
-                                     thickness=2.18),
-            '18icm': MetalMeshFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
-                                     wavelength=self.wavelength,
-                                     t_min=t_hp_min, a_min=a_hp_min,
-                                     thickness=2.18),
+                                    thickness=2.18),
             'nylon': NylonFilter(2.38, wavelength=self.wavelength,
                                  t_min=t_ny_min, norm=norm),
             'cirlex': Cirlex(frequency=self.frequency),
