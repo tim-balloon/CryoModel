@@ -885,7 +885,7 @@ class RadiativeStack(RadiativeSurface):
             S.propagate(curinc, force=force)
             # get spectra
             tcur = S.get_trans()
-            ecur = S.get_abs()
+            acur = S.get_abs()
             rcur = S.get_ref()
             # update absorbed power sourcs
             self.iabs_list.extend(S.get_iabs_list())
@@ -897,7 +897,7 @@ class RadiativeStack(RadiativeSurface):
             # self.ref += rcur * self.trans * self.trans
             self.ref += rcur * self.trans
             # abssivity
-            self.abs = self.abs * tcur + ecur
+            self.abs = self.abs * tcur + acur
             # transmission
             self.trans *= tcur
             # proceed to next surface
