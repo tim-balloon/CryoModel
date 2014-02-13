@@ -135,25 +135,12 @@ class FilterModel(object):
             self._load_from_params(fcent=fcent, width=width, amp=amp,
                                    nfilt=nfilt, norm=norm)
         else:
-            filename_orig = filename
-            if not os.path.isfile(filename):
-                realdir = os.path.dirname(os.path.realpath(__file__))
-                filename = os.path.join(realdir, 'rad_data', filename)
-            if not os.path.isfile(filename):
-                raise OSError,'Cannot find filter file %s' % filename_orig
             self._load_from_file(filename, nfilt=nfilt, norm=norm)
         self.trans = self._interpt(wavelength=wavelength,
                                    t_min=t_min, t_max=t_max) 
         if type == 'partial':
             if abs_filename is None:
                 raise ValueError,'Need filename for absorption data'
-            abs_filename_orig = abs_filename
-            if not os.path.isfile(abs_filename):
-                realdir = os.path.dirname(os.path.realpath(__file__))
-                abs_filename = os.path.join(realdir, 'rad_data', abs_filename)
-            if not os.path.isfile(abs_filename):
-                raise OSError,\
-                    'Cannot find filter file %s' % abs_filename_orig
             self._load_abs_from_file(abs_filename, thickness=thickness,
                                      norm=norm)
             self.abs = self._interpa(wavelength=wavelength,
@@ -170,8 +157,13 @@ class FilterModel(object):
         """
         Read in filter transmission spectrum
         """
+        filename_orig = filename
         if not os.path.isfile(filename):
-            raise OSError,'file %s not found' % filename
+            realdir = os.path.dirname(os.path.realpath(__file__))
+            filename = os.path.join(realdir, 'rad_data', filename)
+        if not os.path.isfile(filename):
+            raise OSError,'Cannot find filter file %s' % filename_orig
+        
         self.filename = filename
         self.nfilt = nfilt
         
@@ -184,10 +176,16 @@ class FilterModel(object):
         if norm: t /= np.max(t)
         self.trans_raw = threshold(t,low=0.0,high=1.0)
         
-    def _load_abs_from_file(self,filename, thickness=2.18, norm=False):
-        if not os.path.isfile(filename):
-            raise OSError,'file %s not found' % filename
-        f,a = np.loadtxt(filename,unpack=True,skiprows=1)
+    def _load_abs_from_file(self,abs_filename, thickness=2.18, norm=False):
+        abs_filename_orig = abs_filename
+        if not os.path.isfile(abs_filename):
+            realdir = os.path.dirname(os.path.realpath(__file__))
+            abs_filename = os.path.join(realdir, 'rad_data', abs_filename)
+        if not os.path.isfile(abs_filename):
+            raise OSError,\
+                'Cannot find filter file %s' % abs_filename_orig
+            
+        f,a = np.loadtxt(abs_filename,unpack=True,skiprows=1)
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
         # NB: thickness in mm
@@ -296,6 +294,21 @@ class MylarFilter(FilterModel):
         kwargs['abs_filename'] = 'mylar_abs_icm.txt'
         super(MylarFilter,self).__init__(name, filename,
                                         thickness=thickness, **kwargs)
+
+class ZitexFilter(FilterModel):
+    def __init__(self, name, filename=None, thickness=1, wavelength=None,
+                 a_min=None, a_max=None, norm=None, **kwargs):
+        self.name = name
+        self.type = 'absorber'
+        self._load_abs_from_file('zitex_abs_icm.txt', thickness=thickness,
+                                 norm=norm)
+        self.abs = self._interpa(wavelength=wavelength, a_min=a_min,
+                                 a_max=a_max)
+        self.trans = 1 - self.abs
+        # kwargs['type'] = 'partial'
+        # kwargs['abs_filename'] = 'zitex_abs_icm.txt'
+        # super(ZitexFilter,self).__init__(name, filename,
+        #                                  thickness=thickness, **kwargs)
 
 class HotPressFilter(PolyFilter):
     def __init__(self,name, filename=None, thickness=2.18, **kwargs):
@@ -1038,7 +1051,9 @@ class RadiativeModel(object):
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
         
         # nylon conductivity
-        self.params['g_nylon'] = kwargs.pop('g_nylon',3e-5) # W/K
+        # self.params['g_nylon'] = kwargs.pop('g_nylon',3e-5) # W/K
+        self.params['vcs1_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',30) # K
+        self.params['4k_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',0) # K
         
         # aperture diameter
         self.params['aperture'] = kwargs.pop('aperture',0.3) # m
@@ -1104,54 +1119,52 @@ class RadiativeModel(object):
         a_hp_min = self.params['a_hp_min']
         a_sh_min = self.params['a_sh_min']
         t_ny_min = self.params['t_ny_min']
+        fopts = dict(wavelength=self.wavelength)
         self.filters = {
             'c8-c8': ShaderFilter('c8-c8','spider_filters_c8-c8.txt',
-                                  wavelength=self.wavelength,
                                   t_min=t_sh_min, a_min=a_sh_min,
-                                  norm=norm),
+                                  norm=norm, **fopts),
             'c12-c16': ShaderFilter('c12-c16','spider_filters_c12-c16.txt',
-                                    wavelength=self.wavelength,
                                     t_min=t_sh_min, a_min=a_sh_min,
-                                    norm=norm),
+                                    norm=norm, **fopts),
             'c15': ShaderFilter('c15','spider_filters_c15.txt',
-                                wavelength=self.wavelength,
                                 t_min=t_sh_min, a_min=a_sh_min,
-                                norm=norm),
+                                norm=norm, **fopts),
             'c16-c25': ShaderFilter('c16-c25','spider_filters_c16-c25.txt',
-                                    wavelength=self.wavelength,
                                     t_min=t_sh_min, a_min=a_sh_min,
-                                    norm=norm),
+                                    norm=norm, **fopts),
             'c30': ShaderFilter('c30','spider_filters_c30.txt',
-                                wavelength=self.wavelength,
                                 t_min=t_sh_min, a_min=a_sh_min,
-                                norm=norm),
+                                norm=norm, **fopts),
             '12icm': HotPressFilter('12icm',
                                     'spider_filters_w1078_12icm.txt',
-                                    wavelength=self.wavelength,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm),
+                                    thickness=2.18, norm=norm, **fopts),
             '7icm': HotPressFilter('7icm','spider_filters_w1522_7icm.txt',
-                                   wavelength=self.wavelength,
                                    t_min=t_hp_min, a_min=a_hp_min,
-                                   thickness=2.18, norm=norm),
+                                   thickness=2.18, norm=norm, **fopts),
             '4icm': HotPressFilter('4icm','spider_filters_4icm.txt',
-                                   wavelength=self.wavelength,
                                    t_min=t_hp_min, a_min=a_hp_min,
-                                   thickness=2.18, norm=norm),
+                                   thickness=2.18, norm=norm, **fopts),
             '6icm': HotPressFilter('6icm','spider_filters_6icm.txt',
-                                   wavelength=self.wavelength,
                                    t_min=t_hp_min, a_min=a_hp_min,
-                                   thickness=2.18, norm=norm),
+                                   thickness=2.18, norm=norm, **fopts),
             '10icm': HotPressFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
-                                    wavelength=self.wavelength,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18),
+                                    thickness=2.18, **fopts),
             '18icm': HotPressFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
-                                    wavelength=self.wavelength,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18),
-            'nylon': NylonFilter(2.38, wavelength=self.wavelength,
-                                 t_min=t_ny_min, norm=norm),
+                                    thickness=2.18, **fopts),
+            'ar90ny': ZitexFilter('ar90ny',t_min=t_ny_min,
+                                  thickness=0.381, **fopts),
+            'ar150ny': ZitexFilter('ar150ny', t_min=t_ny_min,
+                                   thickness=0.584, **fopts),
+            'ar90pe': ZitexFilter('ar90pe', t_min=t_ny_min,
+                                  thickness=0.406, **fopts),
+            'ar150pe': ZitexFilter('ar150pe', t_min=t_ny_min,
+                                   thickness=0.610, **fopts),
+            'nylon': NylonFilter(2.38, t_min=t_ny_min, norm=norm,
+                                 **fopts),
             'cirlex': Cirlex(frequency=self.frequency),
             'quartz': Quartz(frequency=self.frequency),
             }
@@ -1263,13 +1276,25 @@ class RadiativeModel(object):
         
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage):
-            bb = blackbody(freq,self.params['t%s'%stage])
-            return RadiativeStack(
-                stage.upper(),
-                [FilterSurface('%s %s %s' % (stage.upper(),chr(ord('A')+i),f),
-                               self.filters[f], bb=bb)
-                 for i,f in enumerate(filter_stack[stage])],
-                )
+            T = self.params['t%s'%stage]
+            bb = blackbody(freq,T)
+            stack = [FilterSurface('%s %s %s' % (stage.upper(),
+                                                 chr(ord('A')+i),f),
+                                   self.filters[f], bb=bb)
+                     for i,f in enumerate(filter_stack[stage])]
+            
+            # hot nylon
+            dt = self.get_param('%s_nylon_dt' % stage)
+            if dt and 'nylon' in filter_stack[stage]:
+                nyidx = filter_stack[stage].index('nylon')
+                nybb = blackbody(freq, T+dt)
+                stack[nyidx].bb = nybb
+                # check for AR coats
+                if filter_stack[stage][nyidx-1].startswith('ar'):
+                    stack[nyidx-1].bb = nybb
+                    stack[nyidx+1].bb = nybb
+                
+            return RadiativeStack(stage.upper(), stack)
         
         Rvcs2 = make_stack('vcs2')
         Rvcs1 = make_stack('vcs1')
@@ -1304,22 +1329,26 @@ class RadiativeModel(object):
         self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky)
         
         # second pass to account for loading on nylon
-        if any(['nylon' in f for f in filter_stack.values()]):
-            g_nylon = self.params['g_nylon']
-            if g_nylon and np.isfinite(g_nylon):
-                self.stack.results(display=False)
-                for S in self.stack.surfaces:
-                    stage = S.name.lower()
-                    if stage not in filter_stack: continue
-                    if 'nylon' not in filter_stack[stage]: continue
-                    for SS in S.surfaces:
-                        if 'nylon' in SS.name:
-                            dT = SS.iabs_int / g_nylon
-                            print '%-6s' % stage.upper(), \
-                                'nylon dT = %s' % uprint(dT,'K','%8.3f')
-                            T = self.params['t%s'%stage] + dT
-                            SS.bb = blackbody(freq, T)
-                self.stack.propagate(force=True)
+        # if any(['nylon' in f for f in filter_stack.values()]):
+        #     g_nylon = self.params['g_nylon']
+        #     if g_nylon and np.isfinite(g_nylon):
+        #         self.stack.results(display=False)
+        #         for S in self.stack.surfaces:
+        #             stage = S.name.lower()
+        #             if stage not in filter_stack: continue
+        #             if 'nylon' not in filter_stack[stage]: continue
+        #             for idx,SS in enumerate(S.surfaces):
+        #                 if 'nylon' in SS.name:
+        #                     dT = SS.iabs_int / g_nylon
+        #                     print '%-6s' % stage.upper(), \
+        #                         'nylon dT = %s' % uprint(dT,'K','%8.3f')
+        #                     T = self.params['t%s'%stage] + dT
+        #                     bb = blackbody(freq, T)
+        #                     SS.bb = bb
+        #                     if S.surfaces[idx-1].name.split()[-1].startswith('ar'):
+        #                         S.surfaces[idx-1].bb = bb
+        #                         S.surfaces[idx+1].bb = bb
+        #         self.stack.propagate(force=True)
         
         # print results
         self.results(summary=summary)
@@ -1465,6 +1494,26 @@ def main(model_class=RadiativeModel):
                              },
             'tag': '150ghz_nowin_nonylon',
             'opts': dict(window=False)
+            },
+        12: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm',
+                                     'ar150ny','nylon','ar150ny'],
+                             '4k':['ar150pe','10icm','ar150pe',
+                                   'ar150ny','nylon','ar150ny'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_ar',
+            'opts': dict(g_nylon=1e-4)
+            },
+        13: {
+            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                             'vcs1':['c15','c30','c30','12icm'],
+                             '4k':['ar150pe','10icm','ar150pe',
+                                   'ar150ny','nylon','ar150ny'],
+                             '2k':['6icm'],
+                             },
+            'tag': '150ghz_ar_nonylon'
             },
         }
     
