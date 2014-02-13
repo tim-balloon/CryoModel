@@ -126,7 +126,8 @@ class FilterModel(object):
     def __init__(self,name, filename=None, nfilt=1, fcent=None, width=None,
                  amp=None, wavelength=None, t_min=None, t_max=None,
                  norm=False, type='reflector', abs_filename=None,
-                 thickness=None, a_min=None, a_max=None):
+                 thickness=None, a_min=None, a_max=None,
+                 t_lowf=None, t_highf=None, a_lowf=None, a_highf=None):
         self.name = name
         self.wavelength = None
         self.trans = None
@@ -136,6 +137,10 @@ class FilterModel(object):
                                    nfilt=nfilt, norm=norm)
         else:
             self._load_from_file(filename, nfilt=nfilt, norm=norm)
+        if t_lowf is not None:
+            self.trans_raw[0] = t_lowf
+        if t_highf is not None:
+            self.trans_raw[-1] = t_highf
         self.trans = self._interpt(wavelength=wavelength,
                                    t_min=t_min, t_max=t_max) 
         if type == 'partial':
@@ -143,9 +148,13 @@ class FilterModel(object):
                 raise ValueError,'Need filename for absorption data'
             self._load_abs_from_file(abs_filename, thickness=thickness,
                                      norm=norm)
+            if a_lowf is not None:
+                self.abs_raw[0] = a_lowf
+            if a_highf is not None:
+                self.abs_raw[-1] = a_highf
             self.abs = self._interpa(wavelength=wavelength,
                                      a_min=a_min, a_max=a_max)
-        
+            
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
                                   1 - self.abs, self.trans)
@@ -316,8 +325,10 @@ class HotPressFilter(PolyFilter):
                                         **kwargs)
 
 class ShaderFilter(MylarFilter):
-    def __init__(self, name, filename=None, thickness=0.004, **kwargs):
+    def __init__(self, name, filename=None, thickness=0.004, t_highf=0.5,
+                 a_highf=0.5, **kwargs):
         super(ShaderFilter,self).__init__(name, filename, thickness,
+                                          t_highf=t_highf, a_highf=a_highf,
                                           **kwargs)
 
 class NylonFilter(FilterModel):
@@ -360,6 +371,7 @@ class NylonFilter(FilterModel):
 class Cirlex(FilterModel):
     
     def __init__(self,frequency):
+        self.name = 'cirlex'
         self.frequency = frequency
         self.type = 'absorber'
     
@@ -388,6 +400,10 @@ class Cirlex(FilterModel):
         return self.trans
 
 class Quartz(Cirlex):
+    
+    def __init__(self,*args,**kwargs):
+        super(Quartz,self).__init__(*args,**kwargs)
+        self.name = 'quartz'
     
     def get_trans(self,wavelength=None,t_min=None,t_max=None):
         if not hasattr(self,'trans'):
