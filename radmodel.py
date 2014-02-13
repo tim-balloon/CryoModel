@@ -191,7 +191,7 @@ class FilterModel(object):
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
         # NB: thickness in mm
-        a = np.append(np.insert(1-np.exp(-a*thickness/11),0,0.0),1.0)
+        a = np.append(np.insert(1-np.exp(-a*thickness),0,0.0),1.0)
         self.abs_wavelength_raw = l
         if norm: a /= np.max(a)
         self.abs_raw = a
