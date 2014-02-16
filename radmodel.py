@@ -180,7 +180,7 @@ class FilterModel(object):
         t = t**nfilt
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
-        t = np.append(np.insert(t,0,1.0),0.0)
+        t = np.append(np.insert(t,0,t[0]),t[-1])
         self.wavelength_raw = l
         if norm: t /= np.max(t)
         self.trans_raw = threshold(t,low=0.0,high=1.0)
@@ -198,9 +198,10 @@ class FilterModel(object):
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
         # NB: thickness in mm
-        a = np.append(np.insert(1-np.exp(-a*thickness),0,0.0),1.0)
+        a = 1-np.exp(-a*thickness)
+        a = np.append(np.insert(a,0,a[0]),1.0)
         self.abs_wavelength_raw = l
-        if norm: a /= np.max(a)
+        # if norm: a /= np.max(a)
         self.abs_raw = a
         
     def _load_from_params(self,fcent=None, width=None, amp=None, 
@@ -232,7 +233,7 @@ class FilterModel(object):
         t = (t*amp)**nfilt
         l = 1e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
-        t = np.append(np.insert(t,0,1.0),0.0)
+        t = np.append(np.insert(t,0,t[0]),t[-1])
         if norm: t /= np.max(t)
         self.wavelength_raw = l
         self.trans_raw = t
@@ -320,9 +321,15 @@ class ZitexFilter(FilterModel):
         #                                  thickness=thickness, **kwargs)
 
 class HotPressFilter(PolyFilter):
-    def __init__(self,name, filename=None, thickness=2.18, **kwargs):
+    def __init__(self,name, filename=None, thickness=2.18, arc=None,
+                 **kwargs):
         super(HotPressFilter,self).__init__(name, filename, thickness,
                                         **kwargs)
+        # add AR coat absorption
+        if isinstance(arc,FilterModel):
+            a = self.abs
+            b = arc.abs
+            self.abs = 1 - np.exp(np.log(1-a) + 2 * np.log(1-b))
 
 class ShaderFilter(MylarFilter):
     def __init__(self, name, filename=None, thickness=0.004, t_highf=0.5,
@@ -1155,7 +1162,7 @@ class RadiativeModel(object):
             '12icm': HotPressFilter('12icm',
                                     'spider_filters_w1078_12icm.txt',
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=1.7, norm=norm, **fopts),
+                                    thickness=2, norm=norm, **fopts),
             '7icm': HotPressFilter('7icm','spider_filters_w1522_7icm.txt',
                                    t_min=t_hp_min, a_min=a_hp_min,
                                    thickness=2.8, norm=norm, **fopts),
@@ -1170,6 +1177,8 @@ class RadiativeModel(object):
                                     thickness=2, **fopts),
             '10icm_arc': HotPressFilter('10icm_arc',
                                         'spider_filters_w1355_10icm_arc.txt',
+                                        arc=ZitexFilter('ar',thickness=0.381,
+                                                        **fopts),
                                         t_min=t_hp_min, a_min=a_hp_min,
                                         thickness=2, **fopts),
             '18icm': HotPressFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
