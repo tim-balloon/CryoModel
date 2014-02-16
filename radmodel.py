@@ -126,7 +126,7 @@ class FilterModel(object):
     def __init__(self,name, filename=None, nfilt=1, fcent=None, width=None,
                  amp=None, wavelength=None, t_min=None, t_max=None,
                  norm=False, type='reflector', abs_filename=None,
-                 thickness=None, a_min=None, a_max=None,
+                 thickness=None, a_min=None, a_max=None, arc=None,
                  t_lowf=None, t_highf=None, a_lowf=None, a_highf=None):
         self.name = name
         self.wavelength = None
@@ -154,6 +154,12 @@ class FilterModel(object):
                 self.abs_raw[-1] = a_highf
             self.abs = self._interpa(wavelength=wavelength,
                                      a_min=a_min, a_max=a_max)
+            
+            # add AR coat absorption
+            if isinstance(arc,FilterModel):
+                a = self.abs
+                b = arc.abs
+                self.abs = 1 - np.exp(np.log(1-a) + 2 * np.log(1-b))
             
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
@@ -321,15 +327,10 @@ class ZitexFilter(FilterModel):
         #                                  thickness=thickness, **kwargs)
 
 class HotPressFilter(PolyFilter):
-    def __init__(self,name, filename=None, thickness=2.18, arc=None,
+    def __init__(self,name, filename=None, thickness=2.18,
                  **kwargs):
         super(HotPressFilter,self).__init__(name, filename, thickness,
                                         **kwargs)
-        # add AR coat absorption
-        if isinstance(arc,FilterModel):
-            a = self.abs
-            b = arc.abs
-            self.abs = 1 - np.exp(np.log(1-a) + 2 * np.log(1-b))
 
 class ShaderFilter(MylarFilter):
     def __init__(self, name, filename=None, thickness=0.004, t_highf=0.5,
