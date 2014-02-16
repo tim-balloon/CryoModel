@@ -1155,22 +1155,26 @@ class RadiativeModel(object):
             '12icm': HotPressFilter('12icm',
                                     'spider_filters_w1078_12icm.txt',
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm, **fopts),
+                                    thickness=1.7, norm=norm, **fopts),
             '7icm': HotPressFilter('7icm','spider_filters_w1522_7icm.txt',
                                    t_min=t_hp_min, a_min=a_hp_min,
-                                   thickness=2.18, norm=norm, **fopts),
+                                   thickness=2.8, norm=norm, **fopts),
             '4icm': HotPressFilter('4icm','spider_filters_4icm.txt',
                                    t_min=t_hp_min, a_min=a_hp_min,
-                                   thickness=2.18, norm=norm, **fopts),
+                                   thickness=5, norm=norm, **fopts),
             '6icm': HotPressFilter('6icm','spider_filters_6icm.txt',
                                    t_min=t_hp_min, a_min=a_hp_min,
-                                   thickness=2.18, norm=norm, **fopts),
+                                   thickness=3.3, norm=norm, **fopts),
             '10icm': HotPressFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, **fopts),
+                                    thickness=2, **fopts),
+            '10icm_arc': HotPressFilter('10icm_arc',
+                                        'spider_filters_w1355_10icm_arc.txt',
+                                        t_min=t_hp_min, a_min=a_hp_min,
+                                        thickness=2, **fopts),
             '18icm': HotPressFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, **fopts),
+                                    thickness=1.1, **fopts),
             'ar90ny': ZitexFilter('ar90ny',t_min=t_ny_min,
                                   thickness=0.381, **fopts),
             'ar150ny': ZitexFilter('ar150ny', t_min=t_ny_min,
@@ -1415,124 +1419,125 @@ class RadiativeModel(object):
             S.plot_abs(ylim=[1e-8,1.1], **pargs)
             S.plot_ref(ylim=[1e-8,1.1], **pargs)
 
+
+models = {
+    1: {
+        'filter_stack': {'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
+                         'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
+                         '4k':['10icm','nylon'],
+                         '2k':['7icm'],
+                         },
+        'tag': 'default'
+        },
+    2: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz'
+        },
+    3: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['18icm','10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_18icm'
+        },
+    4: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['cirlex','10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_hwp'
+        },
+    5: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['quartz','10icm_arc','nylon'],
+                         '2k':['4icm'],
+                         },
+        'tag': '90ghz_hwp',
+        'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
+        },
+    6: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['cirlex','10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_hwp_300k',
+        'opts': dict(tsky=300, atmos=0)
+        },
+    7: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_nonylon'
+        },
+    8: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_300k',
+        'opts': dict(tsky=300, atmos=0)
+        },
+    9: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_300k_nonylon',
+        'opts': dict(tsky=300, atmos=0)
+        },
+    10: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_nowin',
+        'opts': dict(window=False)
+        },
+    11: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc','nylon'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_nowin_nonylon',
+        'opts': dict(window=False)
+        },
+    12: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'ar150ny','nylon','ar150ny'],
+                         '4k':['10icm_arc',
+                               'ar150ny','nylon','ar150ny'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_ar',
+        'opts': dict(g_nylon=1e-4)
+        },
+    13: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc',
+                               'ar150ny','nylon','ar150ny'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_ar_nonylon'
+        },
+    }
+
 def main(model_class=RadiativeModel):
-    models = {
-        1: {
-            'filter_stack': {'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
-                             'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
-                             '4k':['10icm','nylon'],
-                             '2k':['7icm'],
-                             },
-            'tag': 'default'
-            },
-        2: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz'
-            },
-        3: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['18icm','10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_18icm'
-            },
-        4: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['cirlex','10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_hwp'
-            },
-        5: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['quartz','10icm','nylon'],
-                             '2k':['4icm'],
-                             },
-            'tag': '90ghz_hwp',
-            'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
-            },
-        6: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['cirlex','10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_hwp_300k',
-            'opts': dict(tsky=300, atmos=0)
-            },
-        7: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm'],
-                             '4k':['10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_nonylon'
-            },
-        8: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_300k',
-            'opts': dict(tsky=300, atmos=0)
-            },
-        9: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm'],
-                             '4k':['10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_300k_nonylon',
-            'opts': dict(tsky=300, atmos=0)
-            },
-        10: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm','nylon'],
-                             '4k':['10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_nowin',
-            'opts': dict(window=False)
-            },
-        11: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm'],
-                             '4k':['10icm','nylon'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_nowin_nonylon',
-            'opts': dict(window=False)
-            },
-        12: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm',
-                                     'ar150ny','nylon','ar150ny'],
-                             '4k':['ar150pe','10icm','ar150pe',
-                                   'ar150ny','nylon','ar150ny'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_ar',
-            'opts': dict(g_nylon=1e-4)
-            },
-        13: {
-            'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                             'vcs1':['c15','c30','c30','12icm'],
-                             '4k':['ar150pe','10icm','ar150pe',
-                                   'ar150ny','nylon','ar150ny'],
-                             '2k':['6icm'],
-                             },
-            'tag': '150ghz_ar_nonylon'
-            },
-        }
-    
     import argparse as ap
     P = ap.ArgumentParser(add_help=True)
     P.add_argument('model',nargs='?',default=1,type=int,
