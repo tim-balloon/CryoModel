@@ -940,8 +940,8 @@ class RadiativeStack(RadiativeSurface):
             self.iref_list.extend(rlist)
             # self.ref += rcur * self.trans * self.trans
             self.ref += rcur * self.trans
-            # abssivity
-            self.abs = self.abs * tcur + acur
+            # absorptivity
+            self.abs += acur * self.trans
             # transmission
             self.trans *= tcur
             # proceed to next surface
@@ -1078,7 +1078,8 @@ class RadiativeModel(object):
         # self.params['g_nylon'] = kwargs.pop('g_nylon',3e-5) # W/K
         self.params['vcs1_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',30) # K
         self.params['4k_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',0) # K
-        
+        self.params['4k_hwp_dt'] = kwargs.pop('4k_hwp_dt',30)
+
         # aperture diameter
         self.params['aperture'] = kwargs.pop('aperture',0.3) # m
         
@@ -1265,11 +1266,14 @@ class RadiativeModel(object):
         if not self._initialized: self._initialized = True
         
     def run(self, tag=None, plot=False, interactive=False, summary=False,
+            display=True,
             filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                           'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
                           '4k':['10icm','nylon'],
                           '2k':['7icm'],
                           }, **kwargs):
+        
+        self.set_defaults(**kwargs)
         
         # abscissa and conversion factors
         freq = self.frequency
@@ -1323,7 +1327,14 @@ class RadiativeModel(object):
                 if filter_stack[stage][nyidx-1].startswith('ar'):
                     stack[nyidx-1].bb = nybb
                     stack[nyidx+1].bb = nybb
-                
+            
+            # hot hwp
+            dt = self.get_param('4k_hwp_dt')
+            if dt and 'cirlex' in filter_stack[stage]:
+                hwpidx = filter_stack[stage].index('cirlex')
+                hwpbb = blackbody(freq, T+dt)
+                stack[hwpidx].bb = hwpbb
+            
             return RadiativeStack(stage.upper(), stack)
         
         Rvcs2 = make_stack('vcs2')
@@ -1381,20 +1392,22 @@ class RadiativeModel(object):
         #         self.stack.propagate(force=True)
         
         # print results
-        self.results(summary=summary)
+        self.results(summary=summary,display=display)
         
         # plot results
         if plot:
             self.plot(tag=tag, interactive=interactive)
         return self.stack
     
-    def results(self, summary=False):
-        print '*'*80
-        if hasattr(self,'tag') and self.tag:
-            print 'MODEL:',self.tag.replace('_',' ')
-        print '*'*80
-        self.pretty_print_params()
-        self.stack.results(display_this=False, summary=summary)
+    def results(self, summary=False, display=True):
+        if display:
+            print '*'*80
+            if hasattr(self,'tag') and self.tag:
+                print 'MODEL:',self.tag.replace('_',' ')
+            print '*'*80
+            self.pretty_print_params()
+        self.stack.results(display_this=False, display=display,
+                           summary=summary)
     
     def plot(self, tag=None, interactive=False, **kwargs):
         if not interactive:
@@ -1534,7 +1547,7 @@ models = {
                          '2k':['6icm'],
                          },
         'tag': '150ghz_ar',
-        'opts': dict(g_nylon=1e-4)
+        # 'opts': dict(g_nylon=1e-4)
         },
     13: {
         'filter_stack': {'vcs2':['c15','c15','c30','c30'],
@@ -1544,6 +1557,36 @@ models = {
                          '2k':['6icm'],
                          },
         'tag': '150ghz_ar_nonylon'
+        },
+    14: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['cirlex','10icm_arc',
+                               'ar150ny','nylon','ar150ny'],
+                         '2k':['6icm'],
+                         },
+        'tag': '150ghz_ar_nonylon_hwp'
+        },
+    15: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'ar150ny','nylon','ar150ny'],
+                         '4k':['10icm_arc',
+                               'ar150ny','nylon','ar150ny'],
+                         '2k':['4icm'],
+                         },
+        'tag': '90ghz_ar',
+        'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
+        },
+    16: {
+        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc',
+                               'ar150ny','nylon','ar150ny'],
+                         '2k':['4icm'],
+                         },
+        'tag': '90ghz_ar_nonylon',
+        'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
         },
     }
 
