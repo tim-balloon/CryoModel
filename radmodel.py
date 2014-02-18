@@ -476,6 +476,8 @@ class RadiativeSurface(object):
         # initialize
         self.itrans_list = []
         self.itrans = 0.0
+        self.iemis_list = []
+        self.iemis = 0.0
         self.iabs_list = []
         self.iabs = 0.0
         self.iref_list = []
@@ -490,7 +492,8 @@ class RadiativeSurface(object):
             self.area = self.incident.area
             
             # loop over all incident power sources
-            ilist = self.incident.get_itrans_list()
+            ilist = self.incident.get_itrans_list() \
+                    + self.incident.get_iemis_list()
             if len(ilist):
                 # transmitted through this surface
                 self.itrans_list = [('%s trans %s' % (iname, self.name),
@@ -505,8 +508,10 @@ class RadiativeSurface(object):
                                        ii*rloc) for iname, ii in ilist]
         # add reemitted power to transmitted sources
         if not ( np.all(bb==0) or np.all(eloc==0) ):
-            self.itrans_list.append(('%s emis' % self.name, bb*eloc))
+            self.iemis_list.append(('%s emis' % self.name, bb*eloc))
         # total up
+        if len(self.iemis_list):
+            self.iemis = np.sum([x[1] for x in self.iemis_list], axis=0)
         if len(self.itrans_list):
             self.itrans = np.sum([x[1] for x in self.itrans_list], axis=0)
         else: self.itrans = 0.0
@@ -525,26 +530,29 @@ class RadiativeSurface(object):
                 conv = np.power(c/freq,2)
             else: conv = self.area*np.pi # hemispherical scattering!
             self.itrans_int = integrate(conv*self.itrans, freq, idx=self.band)
+            self.iemis_int = integrate(conv*self.iemis, freq, idx=self.band)
             self.iabs_int = integrate(conv*self.iabs, freq, idx=self.band)
             self.iref_int = integrate(conv*self.iref, freq, idx=self.band)
+            self.iemis_list_int = []
             self.itrans_list_int = []
             self.iabs_list_int = []
             self.iref_list_int = []
+            if len(self.iemis_list):
+                self.iemis_list_int = [(x[0],
+                                        integrate(conv*x[1], freq, idx=self.band))
+                                       for x in self.iemis_list]
             if len(self.itrans_list):
                 self.itrans_list_int = [(x[0],
                                          integrate(conv*x[1], freq, idx=self.band))
                                         for x in self.itrans_list]
-            else: self.itrans_list_int = []
             if len(self.iabs_list):
                 self.iabs_list_int = [(x[0],
                                        integrate(conv*x[1], freq, idx=self.band))
                                       for x in self.iabs_list]
-            else: self.iabs_list_int = []
             if len(self.iref_list):
                 self.iref_list_int = [(x[0],
                                        integrate(conv*x[1], freq, idx=self.band))
                                       for x in self.iref_list]
-            else: self.iref_list_int = []
         
         if not display: return
         
@@ -557,10 +565,19 @@ class RadiativeSurface(object):
         f.write('*'*80+'\n')
         f.write('%-8s: %s\n' % ('Surface', self.name))
         if self.incident:
+            pin = self.incident.itrans_int + self.incident.iemis_int
             f.write('%-8s: %s\n' % ('Source', self.incident.name))
-            f.write('%-12s: %s\n' % ('INCIDENT',uprint(self.incident.itrans_int)))
-            norm = self.incident.itrans_int
-        else: norm = self.itrans_int
+            f.write('%-12s: %s\n' % ('INCIDENT', uprint(pin)))
+            norm = pin
+        else: norm = self.iemis_int
+        f.write('%-12s: %s %10.3f%%\n' % 
+                ('EMITTED',uprint(self.iemis_int), self.iemis_int/norm*100))
+        if not summary:
+            if self.iemis_int:
+                for x in self.iemis_list_int:
+                    f.write('  %-15s %s %10.3f%%\n' % 
+                            (x[0].split('emis')[0].strip(), uprint(x[1]),
+                             x[1]/self.iemis_int*100))
         f.write('%-12s: %s %10.3f%%\n' % 
                 ('TRANSMITTED',uprint(self.itrans_int), self.itrans_int/norm*100))
         if not summary:
@@ -634,6 +651,14 @@ class RadiativeSurface(object):
         """Reflection spectrum"""
         return self.ref
     
+    def get_iemis(self, incident=None):
+        self.checkprop('iemis', incident)
+        return self.iemis
+        
+    def get_iemis_list(self, incident=None):
+        self.checkprop('iemis_list', incident)
+        return self.iemis_list
+        
     def get_itrans(self, incident=None):
         """Transmitted power, given incident stage"""
         self.checkprop('itrans', incident)
@@ -918,6 +943,7 @@ class RadiativeStack(RadiativeSurface):
         curinc = incident
         self.iabs_list = []
         self.iref_list = []
+        self.iemis_list = []
         self.trans = 1.0
         self.abs = 0.0
         self.ref = 0.0
@@ -948,9 +974,16 @@ class RadiativeStack(RadiativeSurface):
             curinc = S
         # update transmitted power sources
         # NB: these have been propagated through all surfaces
-        self.itrans_list = curinc.get_itrans_list()
+        tlist = curinc.get_itrans_list() + curinc.get_iemis_list()
+        self.iemis_list = [x for x in tlist
+                           if self.name in x[0].split('emis')[0].strip()]
+        self.itrans_list = [x for x in tlist
+                            if self.name not in x[0].split('emis')[0].strip()]
         self.bb = curinc.bb
         # total up
+        if len(self.iemis_list):
+            self.iemis = np.sum([x[1] for x in self.iemis_list], axis=0)
+        else: self.iemis = 0
         if len(self.itrans_list):
             self.itrans = np.sum([x[1] for x in self.itrans_list], axis=0)
         else: self.itrans = 0
@@ -1020,7 +1053,7 @@ class RadiativeStack(RadiativeSurface):
 class RadiativeModel(object):
     
     # frequency above which the sky is a simple 273K blackbody
-    _MAX_FATMOS = 400.0
+    _MAX_FATMOS = 1000.0
     # emissivity assumed for 273K atmosphere beyond 1 THz
     _ATMOS_EMIS = 1e-1
     
@@ -1093,7 +1126,8 @@ class RadiativeModel(object):
             os.mkdir(figdir)
         self.params['figdir'] = figdir
         
-        atmfile = kwargs.pop('atmfile', 'amatm.dat')
+        # atmfile = kwargs.pop('atmfile', 'amatm.dat')
+        atmfile = kwargs.pop('atmfile', 'atm.midwin.alt30.spec')
         if not os.path.exists(atmfile):
             atmfile = os.path.join(datdir, atmfile)
         self.params['atmfile'] = atmfile
@@ -1120,7 +1154,7 @@ class RadiativeModel(object):
         self.params['tvcs2'] = tvcs2[0]
         self.params['tvcs1'] = tvcs1[0]
         self.params['t4k'] = t4k[0]
-        self.params['atmos'] = atmos[0]
+        self.params['atmos'] = bool(atmos[0])
         
     def print_params(self):
         for k in sorted(self.params.keys()):
@@ -1131,7 +1165,7 @@ class RadiativeModel(object):
             return uprint(v, unit='K', format='%8.3f')
         print '%-20s: %s' % ('Sky temp', tprint(self.params['tsky']))
         print '%-20s: %8.3f' % ('Sky emissivity', self.params['esky'])
-        print '%-20s: %8.3f' % ('Atmosphere fraction', self.params['atmos'])
+        print '%-20s: %s' % ('Atmosphere?', self.params['atmos'])
         print '%-20s: %s' % ('VCS2 temp', tprint(self.params['tvcs2']))
         print '%-20s: %s' % ('VCS1 temp', tprint(self.params['tvcs1']))
         print '%-20s: %s' % ('4K temp', tprint(self.params['t4k']))
@@ -1201,27 +1235,34 @@ class RadiativeModel(object):
             }
         # print 'Available filters: %r' % sorted(self.filters.keys())
         return self.filters
-        
-    def load_atm(self,filename=None,fmax=_MAX_FATMOS,emax=_ATMOS_EMIS):
+    
+    def load_atm(self,filename=None,fmax=1000,emax=0.1):
         filename = self.get_param('atmfile',filename)
-        data = np.loadtxt(filename,unpack=True)
+        data = np.loadtxt(filename,unpack=True,comments='!')
         xout = data[0]
-        yout = data[5]
+        yout = data[11]
+        zout = data[10]
         if fmax is not None:
             p = np.where(xout<fmax)[0]
-            f_sky = np.append(np.insert(xout[p],0,0),1e6)
-            t_sky = np.append(np.insert(yout[p],0,0),0)
+            f_atmos = np.append(np.insert(xout[p],0,0),1e6)
+            t_atmos = np.append(np.insert(yout[p],0,0),0)
+            o_atmos = np.append(np.insert(zout[p],0,0),0)
         else:
-            f_sky = np.append(np.insert(xout,0,0),1e6)
-            t_sky = np.append(np.insert(yout,0,0),0)
-        f_sky = threshold(f_sky,low=1e-12)
-        t_sky = threshold(t_sky,low=1e-12)
-        Inu_atmos = blackbody(f_sky,t_sky)
-        self.Inu_atmos = np.where(
-            self.frequency>fmax,
-            emax*blackbody(self.frequency,273.0),
-            np.interp(self.frequency,f_sky,Inu_atmos))
-        return self.Inu_atmos
+            f_atmos = np.append(np.insert(xout,0,0),1e6)
+            t_atmos = np.append(np.insert(yout,0,0),0)
+            o_atmos = np.append(np.insert(zout,0,0),0)
+        f_atmos = threshold(f_atmos,low=1e-12)
+        t_atmos = threshold(t_atmos,low=1e-12)
+        o_atmos = threshold(o_atmos,low=1e-12)
+        Inu_atmos = blackbody(f_atmos,t_atmos)
+        bb = blackbody(self.frequency,273.0)
+        Inu_atmos = np.where(
+            self.frequency>fmax, emax*bb,
+            np.interp(self.frequency,f_atmos,Inu_atmos))
+        self.e_atmos = Inu_atmos/bb
+        self.t_atmos = np.interp(self.frequency,f_atmos,np.exp(-o_atmos))
+        self.bb_atmos = bb
+        # return self.Inu_atmos
     
     def load_spectrum(self,filename=None):
         filename = self.get_param('spectfile',filename)
@@ -1273,7 +1314,8 @@ class RadiativeModel(object):
                           '2k':['7icm'],
                           }, **kwargs):
         
-        self.set_defaults(**kwargs)
+        # self.set_defaults(**kwargs)
+        self.params.update(kwargs)
         
         # abscissa and conversion factors
         freq = self.frequency
@@ -1282,15 +1324,19 @@ class RadiativeModel(object):
         # aperture area
         area = np.pi*(self.params['aperture']/2.)**2
         
+        opts = dict(wavelength=wlen, frequency=freq,
+                    area=area, verbose=self.verbose)
+        
         # the sky
-        bb_sky = blackbody(freq,self.params['tsky'])*self.params['esky']
-        if self.params['atmos']:
-            bb_sky += self.Inu_atmos
-        Rsky = RadiativeSurface('Sky', trans=0.0, abs=1.0, bb=bb_sky,
-                                wavelength=wlen, frequency=freq,
-                                area=area, incident=False,
-                                verbose=self.verbose)
+        Rsky = RadiativeSurface('Sky', trans=0.0, abs=self.params['esky'],
+                                bb=blackbody(freq,self.params['tsky']),
+                                incident=False, **opts)
         surfaces = [Rsky]
+        if self.params['atmos']:
+            Ratmos = RadiativeSurface('Atmosphere', trans=self.t_atmos,
+                                      abs=self.e_atmos, bb=self.bb_atmos,
+                                      **opts)
+            surfaces += [Ratmos]
         
         if self.params['window']:
             # window spectrum
@@ -1305,7 +1351,8 @@ class RadiativeModel(object):
             window_trans = 1 - window_emis
             bb_win = blackbody(freq, self.params['twin'])
             Rwin = RadiativeSurface('Window', trans=window_trans,
-                                    abs=window_emis, bb=bb_win)
+                                    abs=window_emis, bb=bb_win,
+                                    **opts)
             surfaces.append(Rwin)
         
         # assemble the filter stages into RadiativeStack objects
@@ -1314,7 +1361,7 @@ class RadiativeModel(object):
             bb = blackbody(freq,T)
             stack = [FilterSurface('%s %s %s' % (stage.upper(),
                                                  chr(ord('A')+i),f),
-                                   self.filters[f], bb=bb)
+                                   self.filters[f], bb=bb, **opts)
                      for i,f in enumerate(filter_stack[stage])]
             
             # hot nylon
@@ -1335,7 +1382,7 @@ class RadiativeModel(object):
                 hwpbb = blackbody(freq, T+dt)
                 stack[hwpidx].bb = hwpbb
             
-            return RadiativeStack(stage.upper(), stack)
+            return RadiativeStack(stage.upper(), stack, **opts)
         
         Rvcs2 = make_stack('vcs2')
         Rvcs1 = make_stack('vcs1')
@@ -1346,28 +1393,31 @@ class RadiativeModel(object):
             R2k.surfaces += [
                 # hack! spillover from optics sleeve
                 RadiativeSurface('2K Spillover', bb=R2k.surfaces[-1].bb,
-                                 abs=spill)
+                                 abs=spill, **opts)
                 ]
         surfaces += [Rvcs2, Rvcs1, R4k, R2k]
         
         # sub-K loading (use trans=1 to pass through to detector,
         # but bb=0 to ignore loading onto detector)
-        Rsubk = RadiativeSurface('sub-K', abs=self.params['esubk'])
+        Rsubk = RadiativeSurface('sub-K', abs=self.params['esubk'], **opts)
         surfaces.append(Rsubk)
         
         # detector loading with bandpass
         eta = self.params['eta']
         t = self.spectrum # detector FTS spectrum
         Rband = RadiativeSurface('Bandpass', trans=t,
-                                 antenna=True, band=self.id_band2)
+                                 antenna=True, band=self.id_band2,
+                                 **opts)
         surfaces.append(Rband)
         Rdet = RadiativeSurface('Det', trans=1-eta, abs=eta,
-                                antenna=True, band=self.id_band2)
+                                antenna=True, band=self.id_band2,
+                                **opts)
         surfaces.append(Rdet)
         
         # assemble the whole stack and propagate the sky through it
         self.tag = tag
-        self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky)
+        self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky,
+                                    **opts)
         
         # second pass to account for loading on nylon
         # if any(['nylon' in f for f in filter_stack.values()]):
@@ -1492,7 +1542,7 @@ models = {
                          '2k':['6icm'],
                          },
         'tag': '150ghz_hwp_300k',
-        'opts': dict(tsky=300, atmos=0)
+        'opts': dict(tsky=300, atmos=False)
         },
     7: {
         'filter_stack': {'vcs2':['c15','c15','c30','c30'],
@@ -1509,7 +1559,7 @@ models = {
                          '2k':['6icm'],
                          },
         'tag': '150ghz_300k',
-        'opts': dict(tsky=300, atmos=0)
+        'opts': dict(tsky=300, atmos=False)
         },
     9: {
         'filter_stack': {'vcs2':['c15','c15','c30','c30'],
@@ -1518,7 +1568,7 @@ models = {
                          '2k':['6icm'],
                          },
         'tag': '150ghz_300k_nonylon',
-        'opts': dict(tsky=300, atmos=0)
+        'opts': dict(tsky=300, atmos=False)
         },
     10: {
         'filter_stack': {'vcs2':['c15','c15','c30','c30'],
