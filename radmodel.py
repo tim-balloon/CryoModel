@@ -159,7 +159,7 @@ class FilterModel(object):
             if isinstance(arc,FilterModel):
                 a = self.abs
                 b = arc.abs
-                self.abs = 1 - np.exp(np.log(1-a) + 2 * np.log(1-b))
+                self.abs = 1 - (1-a)*((1-b)**2)
             
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
@@ -209,6 +209,7 @@ class FilterModel(object):
         self.abs_wavelength_raw = l
         # if norm: a /= np.max(a)
         self.abs_raw = a
+        self.thickness = thickness
         
     def _load_from_params(self,fcent=None, width=None, amp=None, 
                           nfilt=1,norm=False):
@@ -341,14 +342,24 @@ class ShaderFilter(MylarFilter):
 
 class NylonFilter(FilterModel):
     def __init__(self,thickness, wavelength, a=None, b=None, alt=False,
-                 t_min=None, t_max=None, norm=False):
+                 t_min=None, t_max=None, norm=False, arc=None):
         self.name = 'nylon'
         self.wavelength = None
         self.trans = None
         self.type = 'absorber'
         self._load(thickness, wavelength, a=a, b=b, alt=alt,
                    t_min=t_min, t_max=t_max, norm=norm)
-    
+
+        # add AR coat absorption
+        if isinstance(arc,FilterModel):
+            a = self.abs
+            b = arc.abs
+            self.abs = 1 - (1-a)*((1-b)**2)
+        
+            # correct transmission if absorption is high
+            self.trans = np.where(self.trans + self.abs > 1,
+                                  1 - self.abs, self.trans)
+
     def _load(self,thickness, wavelength, a=None, b=None, alt=False,
               t_min=None, t_max=None, norm=False):
         if a is None and b is None:
@@ -375,6 +386,7 @@ class NylonFilter(FilterModel):
         t = threshold(np.exp(-arg),low=t_min,high=t_max)
         if norm: t /= np.max(t)
         self.trans = t
+        self.abs = 1 - t
 
 class Cirlex(FilterModel):
     
@@ -923,6 +935,8 @@ class RadiativeStack(RadiativeSurface):
     def __init__(self, name, surfaces, incident=None, **kwargs):
         super(RadiativeStack, self).__init__(name, **kwargs)
         self.surfaces = surfaces
+        from collections import OrderedDict
+        self.surfdict = OrderedDict((x.name.lower(),x) for x in self.surfaces)
         self.incident = incident
         if incident is not None: self.propagate(incident)
     
@@ -1080,8 +1094,12 @@ class RadiativeModel(object):
         
         # detector quantum efficiency
         self.params['eta'] = kwargs.pop('eta',0.4)
-        self.params['esubk'] = kwargs.pop('esubk',0.25) # subk emissivity
-        
+        self.params['det_floor'] = kwargs.pop('det_floor',0.01)
+        self.params['fcent'] = kwargs.pop('fcent',148)
+        self.params['bw'] = kwargs.pop('bw',0.25)
+
+        # subk properties
+        self.params['esubk'] = kwargs.pop('esubk',0.25)
         self.params['tsubk'] = kwargs.pop('tsubk',0.3)
         
         self.params['t_hp_min'] = kwargs.pop('t_hp_min',1e-5)
@@ -1093,9 +1111,9 @@ class RadiativeModel(object):
         # window properties
         self.params['window'] = kwargs.pop('window',True)
         # emissivity at center freq
-        self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
+        # self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
         self.params['window_abs_min'] = kwargs.pop('window_abs_min',1e-3)
-        self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
+        # self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
         
         # temperature
         self.params['twin'] = kwargs.pop('window_temp',
@@ -1127,7 +1145,7 @@ class RadiativeModel(object):
         self.params['figdir'] = figdir
         
         # atmfile = kwargs.pop('atmfile', 'amatm.dat')
-        atmfile = kwargs.pop('atmfile', 'atm.midwin.alt30.spec')
+        atmfile = kwargs.pop('atmfile', 'am_30km.dat')
         if not os.path.exists(atmfile):
             atmfile = os.path.join(datdir, atmfile)
         self.params['atmfile'] = atmfile
@@ -1211,12 +1229,18 @@ class RadiativeModel(object):
             '10icm': HotPressFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
                                     t_min=t_hp_min, a_min=a_hp_min,
                                     thickness=2, **fopts),
-            '10icm_arc': HotPressFilter('10icm_arc',
-                                        'spider_filters_w1355_10icm_arc.txt',
-                                        arc=ZitexFilter('ar',thickness=0.381,
-                                                        **fopts),
-                                        t_min=t_hp_min, a_min=a_hp_min,
-                                        thickness=2, **fopts),
+            '10icm_arc90': HotPressFilter('10icm_arc',
+                                          'spider_filters_w1355_10icm_arc.txt',
+                                          arc=ZitexFilter('ar',thickness=0.406,
+                                                          **fopts),
+                                          t_min=t_hp_min, a_min=a_hp_min,
+                                          thickness=2, **fopts),
+            '10icm_arc150': HotPressFilter('10icm_arc',
+                                           'spider_filters_w1355_10icm_arc.txt',
+                                           arc=ZitexFilter('ar',thickness=0.584,
+                                                           **fopts),
+                                           t_min=t_hp_min, a_min=a_hp_min,
+                                           thickness=2, **fopts),
             '18icm': HotPressFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
                                     t_min=t_hp_min, a_min=a_hp_min,
                                     thickness=1.1, **fopts),
@@ -1228,8 +1252,33 @@ class RadiativeModel(object):
                                   thickness=0.406, **fopts),
             'ar150pe': ZitexFilter('ar150pe', t_min=t_ny_min,
                                    thickness=0.610, **fopts),
-            'nylon': NylonFilter(2.38, t_min=t_ny_min, norm=norm,
-                                 **fopts),
+            'mylar_window': MylarFilter('window', fcent=self.frequency.max(),
+                                        width=0, amp=1.0, thickness=0.01,
+                                        a_min=self.params['window_abs_min'],
+                                        **fopts),
+            'poly_window': PolyFilter('window', fcent=self.frequency.max(),
+                                      width=0, amp=1.0, thickness=3.175,
+                                      a_min=self.params['window_abs_min'],
+                                      **fopts),
+            'poly_window_arc150': PolyFilter('window', fcent=self.frequency.max(),
+                                             width=0, amp=1.0, thickness=3.175,
+                                             a_min=self.params['window_abs_min'],
+                                             arc=ZitexFilter('ar', thickness=0.610,
+                                                             **fopts), **fopts),
+            'poly_window_arc90': PolyFilter('window', fcent=self.frequency.max(),
+                                            width=0, amp=1.0, thickness=3.175,
+                                            a_min=self.params['window_abs_min'],
+                                            arc=ZitexFilter('ar', thickness=0.406,
+                                                            **fopts), **fopts),
+            'nylon': NylonFilter(3.175, t_min=t_ny_min, norm=norm, **fopts),
+            'nylon_arc150': NylonFilter(3.175, t_min=t_ny_min, norm=norm,
+                                        arc=ZitexFilter('ar', thickness=0.584,
+                                                        **fopts),
+                                        **fopts),
+            'nylon_arc90': NylonFilter(3.175, t_min=t_ny_min, norm=norm,
+                                        arc=ZitexFilter('ar', thickness=0.381,
+                                                        **fopts),
+                                        **fopts),
             'cirlex': Cirlex(frequency=self.frequency),
             'quartz': Quartz(frequency=self.frequency),
             }
@@ -1238,10 +1287,10 @@ class RadiativeModel(object):
     
     def load_atm(self,filename=None,fmax=1000,emax=0.1):
         filename = self.get_param('atmfile',filename)
-        data = np.loadtxt(filename,unpack=True,comments='!')
+        data = np.loadtxt(filename,unpack=True,comments='#')
         xout = data[0]
-        yout = data[11]
-        zout = data[10]
+        yout = data[2]
+        zout = data[1]
         if fmax is not None:
             p = np.where(xout<fmax)[0]
             f_atmos = np.append(np.insert(xout[p],0,0),1e6)
@@ -1264,26 +1313,24 @@ class RadiativeModel(object):
         self.bb_atmos = bb
         # return self.Inu_atmos
     
-    def load_spectrum(self,filename=None):
-        filename = self.get_param('spectfile',filename)
-        f,t = np.loadtxt(filename,unpack=True)
+    def load_spectrum(self):
+        """
+        Simple top-hat band about center frequency
+        """
         fcent = self.get_param('fcent')
-        p = np.where((f<0.8*2*fcent)*(f>fcent/3.0))[0]
-        f = f[p]
-        t = threshold(t[p],low=0)
-        # if fcent < 148: f *= fcent/148.0
-        f = np.append(np.insert(f,0,1),1e6)
-        t = np.append(np.insert(t,0,0),0)
-        l = 300./f*1000.0
-        idx = l.argsort()
-        self.spectrum = np.interp(self.wavelength,l[idx],t[idx])
-        self.spectrum /= self.spectrum.max()
+        bw = self.get_param('bw')
+        flr = self.get_param('det_floor')
+        f = self.frequency
+        t = np.ones_like(f)
+        t[f<fcent*(1-bw/2)] = flr
+        t[f>fcent*(1+bw/2)] = flr
+        self.spectrum = t
         return self.spectrum
         
     def set_band(self,**kwargs):
         res = self.get_param('res',kwargs.pop('res',1000))
         fcent = self.get_param('fcent',kwargs.pop('fcent',148))
-        bw = self.get_param('bw',kwargs.pop('bw',0.40))
+        bw = self.get_param('bw',kwargs.pop('bw',0.25))
         bandlo = self.get_param('bandlo',kwargs.pop('bandlo',3))
         bandhi = self.get_param('bandhi',kwargs.pop('bandhi',1000))
         
@@ -1308,11 +1355,13 @@ class RadiativeModel(object):
         
     def run(self, tag=None, plot=False, interactive=False, summary=False,
             display=True,
-            filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
+            filter_stack={'window': ['poly_window'],
+                          'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                           'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
                           '4k':['10icm','nylon'],
                           '2k':['7icm'],
-                          }, **kwargs):
+                          },
+            filter_offsets={}, **kwargs):
         
         # self.set_defaults(**kwargs)
         self.params.update(kwargs)
@@ -1336,20 +1385,15 @@ class RadiativeModel(object):
             Ratmos = RadiativeSurface('Atmosphere', trans=self.t_atmos,
                                       abs=self.e_atmos, bb=self.bb_atmos,
                                       **opts)
-            surfaces += [Ratmos]
+            surfaces.append(Ratmos)
         
+        # window
         if self.params['window']:
-            # window spectrum
-            # window_emis = self.params['window_emis'] * \
-            #     (freq/self.params['fcent'])**self.params['window_beta']
-            # window_emis = threshold(window_emis,high=1.0)
-            Fwin = PolyFilter('window', fcent=freq.max(), width=0,
-                              amp=1.0, wavelength=wlen,
-                              thickness=self.params['window_thickness'],
-                              a_min=self.params['window_abs_min'])
+            Fwin = self.filters[filter_stack['window'][0]]
             window_emis = Fwin.get_emis()
             window_trans = 1 - window_emis
-            bb_win = blackbody(freq, self.params['twin'])
+            dt = filter_offsets.get('window',{}).get(Fwin.name,0)
+            bb_win = blackbody(freq, self.params['twin']+dt)
             Rwin = RadiativeSurface('Window', trans=window_trans,
                                     abs=window_emis, bb=bb_win,
                                     **opts)
@@ -1358,30 +1402,19 @@ class RadiativeModel(object):
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage):
             T = self.params['t%s'%stage]
-            bb = blackbody(freq,T)
-            stack = [FilterSurface('%s %s %s' % (stage.upper(),
-                                                 chr(ord('A')+i),f),
-                                   self.filters[f], bb=bb, **opts)
-                     for i,f in enumerate(filter_stack[stage])]
-            
-            # hot nylon
-            dt = self.get_param('%s_nylon_dt' % stage)
-            if dt and 'nylon' in filter_stack[stage]:
-                nyidx = filter_stack[stage].index('nylon')
-                nybb = blackbody(freq, T+dt)
-                stack[nyidx].bb = nybb
-                # check for AR coats
-                if filter_stack[stage][nyidx-1].startswith('ar'):
-                    stack[nyidx-1].bb = nybb
-                    stack[nyidx+1].bb = nybb
-            
-            # hot hwp
-            dt = self.get_param('4k_hwp_dt')
-            if dt and 'cirlex' in filter_stack[stage]:
-                hwpidx = filter_stack[stage].index('cirlex')
-                hwpbb = blackbody(freq, T+dt)
-                stack[hwpidx].bb = hwpbb
-            
+            tdict = filter_offsets.get(stage, {})
+            flist = filter_stack[stage]
+            stack = []
+            for i,f in enumerate(flist):
+                dt = tdict.get(f,0)
+                bb = blackbody(freq, T+dt)
+                tag = ''
+                idx = np.where(np.array(flist)==f)[0]
+                if len(idx)>1:
+                    tag = ' ' + chr(ord('A')+list(idx).index(i))
+                S = FilterSurface('%s %s%s' % (stage.upper(), f, tag),
+                                  self.filters[f], bb=bb, **opts)
+                stack.append(S)
             return RadiativeStack(stage.upper(), stack, **opts)
         
         Rvcs2 = make_stack('vcs2')
@@ -1418,28 +1451,6 @@ class RadiativeModel(object):
         self.tag = tag
         self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky,
                                     **opts)
-        
-        # second pass to account for loading on nylon
-        # if any(['nylon' in f for f in filter_stack.values()]):
-        #     g_nylon = self.params['g_nylon']
-        #     if g_nylon and np.isfinite(g_nylon):
-        #         self.stack.results(display=False)
-        #         for S in self.stack.surfaces:
-        #             stage = S.name.lower()
-        #             if stage not in filter_stack: continue
-        #             if 'nylon' not in filter_stack[stage]: continue
-        #             for idx,SS in enumerate(S.surfaces):
-        #                 if 'nylon' in SS.name:
-        #                     dT = SS.iabs_int / g_nylon
-        #                     print '%-6s' % stage.upper(), \
-        #                         'nylon dT = %s' % uprint(dT,'K','%8.3f')
-        #                     T = self.params['t%s'%stage] + dT
-        #                     bb = blackbody(freq, T)
-        #                     SS.bb = bb
-        #                     if S.surfaces[idx-1].name.split()[-1].startswith('ar'):
-        #                         S.surfaces[idx-1].bb = bb
-        #                         S.surfaces[idx+1].bb = bb
-        #         self.stack.propagate(force=True)
         
         # print results
         self.results(summary=summary,display=display)
@@ -1493,185 +1504,183 @@ class RadiativeModel(object):
             S.plot_ref(ylim=[1e-8,1.1], **pargs)
 
 
+def model150to90(model):
+    fstack = model['filter_stack'].copy()
+    foff = model['filter_offsets'].copy()
+    for s in fstack:
+        for idx,ss in enumerate(fstack[s]):
+            ss = ss.replace('arc150','arc90')
+            ss = ss.replace('6icm','4icm')
+            ss = ss.replace('cirlex','quartz')
+            fstack[s][idx] = ss
+    for s in foff:
+        for ss in foff[s].keys():
+            v = foff[s].pop(ss)
+            ss = ss.replace('arc150','arc90')
+            ss = ss.replace('6icm','4icm')
+            ss = ss.replace('cirlex','quartz')
+            foff[s][ss] = v
+    return {'filter_stack': fstack, 'filter_offsets': foff}
+
 models = {
-    1: {
-        'filter_stack': {'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
-                         'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
+    'default': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
                          '4k':['10icm','nylon'],
-                         '2k':['7icm'],
-                         },
-        'tag': 'default'
-        },
-    2: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['10icm_arc','nylon'],
                          '2k':['6icm'],
                          },
-        'tag': '150ghz'
+        'filter_offsets': {},
         },
-    3: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+    '18icm': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['18icm','10icm_arc','nylon'],
+                         '4k':['18icm','10icm','nylon'],
                          '2k':['6icm'],
                          },
-        'tag': '150ghz_18icm'
+        'filter_offsets': {},
         },
-    4: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+    'hwp': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['cirlex','10icm_arc','nylon'],
+                         '4k':['cirlex','10icm','nylon'],
                          '2k':['6icm'],
                          },
-        'tag': '150ghz_hwp'
+        'filter_offsets': {},
         },
-    5: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['quartz','10icm_arc','nylon'],
-                         '2k':['4icm'],
-                         },
-        'tag': '90ghz_hwp',
-        'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
-        },
-    6: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['cirlex','10icm_arc','nylon'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_hwp_300k',
-        'opts': dict(tsky=300, atmos=False)
-        },
-    7: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+    'nonylon': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['10icm_arc','nylon'],
+                         '4k':['10icm','nylon'],
                          '2k':['6icm'],
                          },
-        'tag': '150ghz_nonylon'
+        'filter_offsets': {},
         },
-    8: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['10icm_arc','nylon'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_300k',
-        'opts': dict(tsky=300, atmos=False)
-        },
-    9: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['10icm_arc','nylon'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_300k_nonylon',
-        'opts': dict(tsky=300, atmos=False)
-        },
-    10: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm','nylon'],
-                         '4k':['10icm_arc','nylon'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_nowin',
-        'opts': dict(window=False)
-        },
-    11: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['10icm_arc','nylon'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_nowin_nonylon',
-        'opts': dict(window=False)
-        },
-    12: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+    'ar': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm',
-                                 'ar150ny','nylon','ar150ny'],
-                         '4k':['10icm_arc',
-                               'ar150ny','nylon','ar150ny'],
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
                          '2k':['6icm'],
                          },
-        'tag': '150ghz_ar',
-        # 'opts': dict(g_nylon=1e-4)
+        'filter_offsets': {},
         },
-    13: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['10icm_arc',
-                               'ar150ny','nylon','ar150ny'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_ar_nonylon'
-        },
-    14: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
-                         'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['cirlex','10icm_arc',
-                               'ar150ny','nylon','ar150ny'],
-                         '2k':['6icm'],
-                         },
-        'tag': '150ghz_ar_nonylon_hwp'
-        },
-    15: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+    'ar_mylarwindow': {
+        'filter_stack': {'window': ['mylar_window'],
+                         'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm',
-                                 'ar150ny','nylon','ar150ny'],
-                         '4k':['10icm_arc',
-                               'ar150ny','nylon','ar150ny'],
-                         '2k':['4icm'],
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
                          },
-        'tag': '90ghz_ar',
-        'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
+        'filter_offsets': {},
         },
-    16: {
-        'filter_stack': {'vcs2':['c15','c15','c30','c30'],
+    'ar_hotnylon': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'vcs1': {'nylon_arc150': 30}},
+        },
+    'ar_nonylon': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['10icm_arc',
-                               'ar150ny','nylon','ar150ny'],
-                         '2k':['4icm'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
                          },
-        'tag': '90ghz_ar_nonylon',
-        'opts': dict(fcent=94, spectfile='spectrum_90ghz.dat')
+        'filter_offsets': {},
         },
-    }
+    'ar_hwp': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['cirlex','10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_nonylon_hwp': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['cirlex','10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+}
 
 def main(model_class=RadiativeModel):
     import argparse as ap
     P = ap.ArgumentParser(add_help=True)
-    P.add_argument('model',nargs='?',default=1,type=int,
-                   choices=models.keys(), metavar='num',
-                   help='Preset model number. Choices are: %s' % 
-                   ', '.join('%d (%s)' % (k,v['tag']) for k,v in models.items()))
+    P.add_argument('model',nargs='?',default='default',type=str,
+                   choices=models.keys(), metavar='model',
+                   help='Preset model name. Choices are: %s' % 
+                   ', '.join(sorted(models.keys())))
     P.add_argument('-i','--interactive',default=False,
                    action='store_true',help='show plots')
     P.add_argument('-p','--plot',default=False,
                    action='store_true',help='make plots')
     P.add_argument('-s','--summary',default=False,
                    action='store_true',help='print short summary')
+    P.add_argument('-f','--final',default=False,
+                   action='store_true',help='print final surface only')
     P.add_argument('-v','--verbose', default=False,
                    action='store_true',help='verbose mode, for debugging')
+    P.add_argument('--no-window',default=False,action='store_true',
+                   help='No window')
+    P.add_argument('--ground',default=False,action='store_true',
+                   help='Ground loading')
+    P.add_argument('--float',action='store_false',dest='ground',
+                   help='Float loading')
+    P.add_argument('--f90',default=False,action='store_true',
+                   help='90ghz receiver')
+    P.add_argument('--f150', action='store_false',
+                   help='150ghz receiver')
     args = P.parse_args()
     
     if not args.plot: args.interactive = False
     
-    opts = dict(verbose=args.verbose, fcent=148, spectfile='145GHzSpectrum.dat')
-    
+    opts = dict(verbose=args.verbose, fcent=94 if args.f90 else 148)
+
+    if args.ground:
+        opts['tsky'] = 300
+        opts['atmos'] = False
+    if args.no_window:
+        opts['window'] = False
+
     if args.model not in models:
-        raise ValueError,'unrecognized model number %d' % args.model
+        raise ValueError,'unrecognized model ID %s' % args.model
+
+    if args.final:
+        args.summary = False
+        display = False
+    else:
+        display = True
     
     model = models[args.model]
-    if 'opts' in model:
-        opts.update(**model['opts'])
+    if args.f90:
+        model = model150to90(model)
     
+    tag = ('90ghz_' if args.f90 else '150ghz_') + args.model
+    if args.no_window: tag += '_nowin'
+    if args.ground: tag += '_300k'
+
     M = model_class(**opts)
-    M.run(filter_stack=model['filter_stack'], tag=model['tag'],
-          plot=args.plot, interactive=args.interactive,
-          summary=args.summary)
+    stack = M.run(tag=tag, plot=args.plot, interactive=args.interactive,
+                  summary=args.summary, display=display, **model)
+
+    if args.final:
+        stack.surfaces[-1].results()
 
 if __name__ == "__main__":
     
