@@ -33,7 +33,7 @@ def find_equilibrium(args):
 	if args.ULDB:
 		insNum = 1.0
 		config = 'ULDB'
-		numLiters = 80.0
+		numLiters = 120.0
 	else:
 		config = 'theo'
 		insNum = 6
@@ -44,8 +44,11 @@ def find_equilibrium(args):
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	
 	window_MT =  insNum*0.01 #10 mW estimate from current radmodel code 
-	window_VCS1 = insNum*0.07 # 0.07W estimate from current radmodel code
-	
+	window_VCS1 = insNum*0.030 # 0.030W estimate from current radmodel code
+
+	#window_MT =  insNum*0.08 #80 mW estimate from current radmodel code 
+	#window_VCS1 = insNum*0 # arbitrary nylon hot potato #
+		
 	window_VCS2 =  insNum*1.5 # kind of made up
 	
 	
@@ -103,7 +106,7 @@ def find_equilibrium(args):
 	   		
 		MTLoad = Rad_MT + window_MT  \
 				- Rad_SFTtoMT
-		flexCondLoad_MT /= (np.pi**2) #playing with improved flexures
+		flexCondLoad_MT /= (np.pi) #playing with improved flexures
 		MTLoad += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
 		
 		SFTLoad = Rad_SFT
@@ -117,7 +120,7 @@ def find_equilibrium(args):
 			lowlift = np.array([0.124, 0.223, 0.3])
 			p_low = np.polyfit(lowT, lowlift, 1) #linear fit to lower temp data from AKARI
 			
-			cryocooler = 1.0*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
+			cryocooler = 0.0*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
 			print('VCS1 cryocooler power: %s' % cryocooler)
 			print('VCS1 gas cooling power: %s' % gasCoolingVCS1)
 			
