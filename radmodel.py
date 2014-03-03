@@ -44,7 +44,7 @@ def isarr(v):
         return True
     return False
 
-def uprint(v, unit='W', format='%10.6f', cd=False):
+def uprint(v, unit='W', format='%12.6f', cd=False):
     if not v: return '%s  %s' % (format, unit) % v
     udict = {-24  : 'y',  # yocto
               -21 : 'z', # zepto
@@ -71,7 +71,7 @@ def uprint(v, unit='W', format='%10.6f', cd=False):
                  })
     
     vlist = np.array(sorted(udict.keys()))
-    lv = np.log10(v)
+    lv = np.log10(np.abs(v))
     if (lv<vlist.min()): idx = 0
     elif (lv>vlist.max()): idx = -1
     else:
@@ -126,7 +126,8 @@ class FilterModel(object):
     def __init__(self,name, filename=None, nfilt=1, fcent=None, width=None,
                  amp=None, wavelength=None, t_min=None, t_max=None,
                  norm=False, type='reflector', abs_filename=None,
-                 thickness=None, a_min=None, a_max=None):
+                 thickness=None, a_min=None, a_max=None, arc=None,
+                 t_lowf=None, t_highf=None, a_lowf=None, a_highf=None):
         self.name = name
         self.wavelength = None
         self.trans = None
@@ -135,40 +136,49 @@ class FilterModel(object):
             self._load_from_params(fcent=fcent, width=width, amp=amp,
                                    nfilt=nfilt, norm=norm)
         else:
-            filename_orig = filename
-            if not os.path.isfile(filename):
-                realdir = os.path.dirname(os.path.realpath(__file__))
-                filename = os.path.join(realdir, 'rad_data', filename)
-            if not os.path.isfile(filename):
-                raise OSError,'Cannot find filter file %s' % filename_orig
             self._load_from_file(filename, nfilt=nfilt, norm=norm)
+        if t_lowf is not None:
+            self.trans_raw[0] = t_lowf
+        if t_highf is not None:
+            self.trans_raw[-1] = t_highf
         self.trans = self._interpt(wavelength=wavelength,
                                    t_min=t_min, t_max=t_max) 
         if type == 'partial':
             if abs_filename is None:
                 raise ValueError,'Need filename for absorption data'
-            abs_filename_orig = abs_filename
-            if not os.path.isfile(abs_filename):
-                realdir = os.path.dirname(os.path.realpath(__file__))
-                abs_filename = os.path.join(realdir, 'rad_data', abs_filename)
-            if not os.path.isfile(abs_filename):
-                raise OSError,\
-                    'Cannot find filter file %s' % abs_filename_orig
             self._load_abs_from_file(abs_filename, thickness=thickness,
                                      norm=norm)
+            if a_lowf is not None:
+                self.abs_raw[0] = a_lowf
+            if a_highf is not None:
+                self.abs_raw[-1] = a_highf
             self.abs = self._interpa(wavelength=wavelength,
                                      a_min=a_min, a_max=a_max)
-        
+            
+            # add AR coat absorption
+            if isinstance(arc,FilterModel):
+                a = self.abs
+                b = arc.abs
+                self.abs = 1 - (1-a)*((1-b)**2)
+            
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
                                   1 - self.abs, self.trans)
-        
+    
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self.name)
+    
     def _load_from_file(self,filename,nfilt=1,norm=False):
         """
         Read in filter transmission spectrum
         """
+        filename_orig = filename
         if not os.path.isfile(filename):
-            raise OSError,'file %s not found' % filename
+            realdir = os.path.dirname(os.path.realpath(__file__))
+            filename = os.path.join(realdir, 'rad_data', filename)
+        if not os.path.isfile(filename):
+            raise OSError,'Cannot find filter file %s' % filename_orig
+        
         self.filename = filename
         self.nfilt = nfilt
         
@@ -176,22 +186,30 @@ class FilterModel(object):
         t = t**nfilt
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
-        t = np.append(np.insert(t,0,1.0),0.0)
+        t = np.append(np.insert(t,0,t[0]),t[-1])
         self.wavelength_raw = l
         if norm: t /= np.max(t)
         self.trans_raw = threshold(t,low=0.0,high=1.0)
         
-    def _load_abs_from_file(self,filename, thickness=2.18, norm=False):
-        if not os.path.isfile(filename):
-            raise OSError,'file %s not found' % filename
-        f,a = np.loadtxt(filename,unpack=True,skiprows=1)
+    def _load_abs_from_file(self,abs_filename, thickness=2.18, norm=False):
+        abs_filename_orig = abs_filename
+        if not os.path.isfile(abs_filename):
+            realdir = os.path.dirname(os.path.realpath(__file__))
+            abs_filename = os.path.join(realdir, 'rad_data', abs_filename)
+        if not os.path.isfile(abs_filename):
+            raise OSError,\
+                'Cannot find filter file %s' % abs_filename_orig
+            
+        f,a = np.loadtxt(abs_filename,unpack=True,skiprows=1)
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
         # NB: thickness in mm
-        a = np.append(np.insert(1-np.exp(-a*thickness/11),0,0.0),1.0)
+        a = 1-np.exp(-a*thickness)
+        a = np.append(np.insert(a,0,a[0]),1.0)
         self.abs_wavelength_raw = l
-        if norm: a /= np.max(a)
+        # if norm: a /= np.max(a)
         self.abs_raw = a
+        self.thickness = thickness
         
     def _load_from_params(self,fcent=None, width=None, amp=None, 
                           nfilt=1,norm=False):
@@ -222,7 +240,7 @@ class FilterModel(object):
         t = (t*amp)**nfilt
         l = 1e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
-        t = np.append(np.insert(t,0,1.0),0.0)
+        t = np.append(np.insert(t,0,t[0]),t[-1])
         if norm: t /= np.max(t)
         self.wavelength_raw = l
         self.trans_raw = t
@@ -281,32 +299,67 @@ class FilterModel(object):
             raise KeyError,'unknown filter type %s' % self.type
 
 class PolyFilter(FilterModel):
-    def __init__(self, name, filename=None, thickness=11, **kwargs):
+    def __init__(self, name, filename=None, thickness=1, **kwargs):
         kwargs['type'] = 'partial'
         kwargs['abs_filename'] = 'poly_abs.txt'
         super(PolyFilter,self).__init__(name, filename,
                                         thickness=thickness, **kwargs)
 
-class MetalMeshFilter(PolyFilter):
-    def __init__(self,name, filename=None, thickness=2.18, **kwargs):
-        super(MetalMeshFilter,self).__init__(name, filename, thickness,
+class MylarFilter(FilterModel):
+    def __init__(self, name, filename=None, thickness=1, **kwargs):
+        kwargs['type'] = 'partial'
+        kwargs['abs_filename'] = 'mylar_abs_icm.txt'
+        super(MylarFilter,self).__init__(name, filename,
+                                        thickness=thickness, **kwargs)
+
+class ZitexFilter(FilterModel):
+    def __init__(self, name, filename=None, thickness=1, wavelength=None,
+                 a_min=None, a_max=None, norm=None, **kwargs):
+        self.name = name
+        self.type = 'absorber'
+        self._load_abs_from_file('zitex_abs_icm.txt', thickness=thickness,
+                                 norm=norm)
+        self.abs = self._interpa(wavelength=wavelength, a_min=a_min,
+                                 a_max=a_max)
+        self.trans = 1 - self.abs
+        # kwargs['type'] = 'partial'
+        # kwargs['abs_filename'] = 'zitex_abs_icm.txt'
+        # super(ZitexFilter,self).__init__(name, filename,
+        #                                  thickness=thickness, **kwargs)
+
+class HotPressFilter(PolyFilter):
+    def __init__(self,name, filename=None, thickness=2.18,
+                 **kwargs):
+        super(HotPressFilter,self).__init__(name, filename, thickness,
                                         **kwargs)
 
-class ShaderFilter(PolyFilter):
-    def __init__(self, name, filename=None, thickness=0.004, **kwargs):
+class ShaderFilter(MylarFilter):
+    def __init__(self, name, filename=None, thickness=0.004, t_highf=0.5,
+                 a_highf=0.5, **kwargs):
         super(ShaderFilter,self).__init__(name, filename, thickness,
+                                          t_highf=t_highf, a_highf=a_highf,
                                           **kwargs)
 
 class NylonFilter(FilterModel):
     def __init__(self,thickness, wavelength, a=None, b=None, alt=False,
-                 t_min=None, t_max=None, norm=False):
+                 t_min=None, t_max=None, norm=False, arc=None):
         self.name = 'nylon'
         self.wavelength = None
         self.trans = None
         self.type = 'absorber'
         self._load(thickness, wavelength, a=a, b=b, alt=alt,
                    t_min=t_min, t_max=t_max, norm=norm)
-    
+
+        # add AR coat absorption
+        if isinstance(arc,FilterModel):
+            a = self.abs
+            b = arc.abs
+            self.abs = 1 - (1-a)*((1-b)**2)
+        
+            # correct transmission if absorption is high
+            self.trans = np.where(self.trans + self.abs > 1,
+                                  1 - self.abs, self.trans)
+
     def _load(self,thickness, wavelength, a=None, b=None, alt=False,
               t_min=None, t_max=None, norm=False):
         if a is None and b is None:
@@ -333,10 +386,12 @@ class NylonFilter(FilterModel):
         t = threshold(np.exp(-arg),low=t_min,high=t_max)
         if norm: t /= np.max(t)
         self.trans = t
+        self.abs = 1 - t
 
 class Cirlex(FilterModel):
     
     def __init__(self,frequency):
+        self.name = 'cirlex'
         self.frequency = frequency
         self.type = 'absorber'
     
@@ -365,6 +420,10 @@ class Cirlex(FilterModel):
         return self.trans
 
 class Quartz(Cirlex):
+    
+    def __init__(self,*args,**kwargs):
+        super(Quartz,self).__init__(*args,**kwargs)
+        self.name = 'quartz'
     
     def get_trans(self,wavelength=None,t_min=None,t_max=None):
         if not hasattr(self,'trans'):
@@ -408,7 +467,10 @@ class RadiativeSurface(object):
             self.area = area
         self.incident = incident
         if incident is not None: self.propagate(incident)
-        
+    
+    def __repr__(self):
+        return "%s('%s')" % (self.__class__.__name__, self.name)
+    
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
         
@@ -426,6 +488,8 @@ class RadiativeSurface(object):
         # initialize
         self.itrans_list = []
         self.itrans = 0.0
+        self.iemis_list = []
+        self.iemis = 0.0
         self.iabs_list = []
         self.iabs = 0.0
         self.iref_list = []
@@ -440,7 +504,8 @@ class RadiativeSurface(object):
             self.area = self.incident.area
             
             # loop over all incident power sources
-            ilist = self.incident.get_itrans_list()
+            ilist = self.incident.get_itrans_list() \
+                    + self.incident.get_iemis_list()
             if len(ilist):
                 # transmitted through this surface
                 self.itrans_list = [('%s trans %s' % (iname, self.name),
@@ -455,8 +520,10 @@ class RadiativeSurface(object):
                                        ii*rloc) for iname, ii in ilist]
         # add reemitted power to transmitted sources
         if not ( np.all(bb==0) or np.all(eloc==0) ):
-            self.itrans_list.append(('%s emis' % self.name, bb*eloc))
+            self.iemis_list.append(('%s emis' % self.name, bb*eloc))
         # total up
+        if len(self.iemis_list):
+            self.iemis = np.sum([x[1] for x in self.iemis_list], axis=0)
         if len(self.itrans_list):
             self.itrans = np.sum([x[1] for x in self.itrans_list], axis=0)
         else: self.itrans = 0.0
@@ -475,26 +542,29 @@ class RadiativeSurface(object):
                 conv = np.power(c/freq,2)
             else: conv = self.area*np.pi # hemispherical scattering!
             self.itrans_int = integrate(conv*self.itrans, freq, idx=self.band)
+            self.iemis_int = integrate(conv*self.iemis, freq, idx=self.band)
             self.iabs_int = integrate(conv*self.iabs, freq, idx=self.band)
             self.iref_int = integrate(conv*self.iref, freq, idx=self.band)
+            self.iemis_list_int = []
             self.itrans_list_int = []
             self.iabs_list_int = []
             self.iref_list_int = []
+            if len(self.iemis_list):
+                self.iemis_list_int = [(x[0],
+                                        integrate(conv*x[1], freq, idx=self.band))
+                                       for x in self.iemis_list]
             if len(self.itrans_list):
                 self.itrans_list_int = [(x[0],
                                          integrate(conv*x[1], freq, idx=self.band))
                                         for x in self.itrans_list]
-            else: self.itrans_list_int = []
             if len(self.iabs_list):
                 self.iabs_list_int = [(x[0],
                                        integrate(conv*x[1], freq, idx=self.band))
                                       for x in self.iabs_list]
-            else: self.iabs_list_int = []
             if len(self.iref_list):
                 self.iref_list_int = [(x[0],
                                        integrate(conv*x[1], freq, idx=self.band))
                                       for x in self.iref_list]
-            else: self.iref_list_int = []
         
         if not display: return
         
@@ -507,10 +577,19 @@ class RadiativeSurface(object):
         f.write('*'*80+'\n')
         f.write('%-8s: %s\n' % ('Surface', self.name))
         if self.incident:
+            pin = self.incident.itrans_int + self.incident.iemis_int
             f.write('%-8s: %s\n' % ('Source', self.incident.name))
-            f.write('%-12s: %s\n' % ('INCIDENT',uprint(self.incident.itrans_int)))
-            norm = self.incident.itrans_int
-        else: norm = self.itrans_int
+            f.write('%-12s: %s\n' % ('INCIDENT', uprint(pin)))
+            norm = pin
+        else: norm = self.iemis_int
+        f.write('%-12s: %s %10.3f%%\n' % 
+                ('EMITTED',uprint(self.iemis_int), self.iemis_int/norm*100))
+        if not summary:
+            if self.iemis_int:
+                for x in self.iemis_list_int:
+                    f.write('  %-15s %s %10.3f%%\n' % 
+                            (x[0].split('emis')[0].strip(), uprint(x[1]),
+                             x[1]/self.iemis_int*100))
         f.write('%-12s: %s %10.3f%%\n' % 
                 ('TRANSMITTED',uprint(self.itrans_int), self.itrans_int/norm*100))
         if not summary:
@@ -584,6 +663,14 @@ class RadiativeSurface(object):
         """Reflection spectrum"""
         return self.ref
     
+    def get_iemis(self, incident=None):
+        self.checkprop('iemis', incident)
+        return self.iemis
+        
+    def get_iemis_list(self, incident=None):
+        self.checkprop('iemis_list', incident)
+        return self.iemis_list
+        
     def get_itrans(self, incident=None):
         """Transmitted power, given incident stage"""
         self.checkprop('itrans', incident)
@@ -848,6 +935,8 @@ class RadiativeStack(RadiativeSurface):
     def __init__(self, name, surfaces, incident=None, **kwargs):
         super(RadiativeStack, self).__init__(name, **kwargs)
         self.surfaces = surfaces
+        from collections import OrderedDict
+        self.surfdict = OrderedDict((x.name.lower(),x) for x in self.surfaces)
         self.incident = incident
         if incident is not None: self.propagate(incident)
     
@@ -868,6 +957,7 @@ class RadiativeStack(RadiativeSurface):
         curinc = incident
         self.iabs_list = []
         self.iref_list = []
+        self.iemis_list = []
         self.trans = 1.0
         self.abs = 0.0
         self.ref = 0.0
@@ -879,7 +969,7 @@ class RadiativeStack(RadiativeSurface):
             S.propagate(curinc, force=force)
             # get spectra
             tcur = S.get_trans()
-            ecur = S.get_abs()
+            acur = S.get_abs()
             rcur = S.get_ref()
             # update absorbed power sourcs
             self.iabs_list.extend(S.get_iabs_list())
@@ -890,17 +980,24 @@ class RadiativeStack(RadiativeSurface):
             self.iref_list.extend(rlist)
             # self.ref += rcur * self.trans * self.trans
             self.ref += rcur * self.trans
-            # abssivity
-            self.abs = self.abs * tcur + ecur
+            # absorptivity
+            self.abs += acur * self.trans
             # transmission
             self.trans *= tcur
             # proceed to next surface
             curinc = S
         # update transmitted power sources
         # NB: these have been propagated through all surfaces
-        self.itrans_list = curinc.get_itrans_list()
+        tlist = curinc.get_itrans_list() + curinc.get_iemis_list()
+        self.iemis_list = [x for x in tlist
+                           if self.name in x[0].split('emis')[0].strip()]
+        self.itrans_list = [x for x in tlist
+                            if self.name not in x[0].split('emis')[0].strip()]
         self.bb = curinc.bb
         # total up
+        if len(self.iemis_list):
+            self.iemis = np.sum([x[1] for x in self.iemis_list], axis=0)
+        else: self.iemis = 0
         if len(self.itrans_list):
             self.itrans = np.sum([x[1] for x in self.itrans_list], axis=0)
         else: self.itrans = 0
@@ -970,7 +1067,7 @@ class RadiativeStack(RadiativeSurface):
 class RadiativeModel(object):
     
     # frequency above which the sky is a simple 273K blackbody
-    _MAX_FATMOS = 400.0
+    _MAX_FATMOS = 1000.0
     # emissivity assumed for 273K atmosphere beyond 1 THz
     _ATMOS_EMIS = 1e-1
     
@@ -997,8 +1094,12 @@ class RadiativeModel(object):
         
         # detector quantum efficiency
         self.params['eta'] = kwargs.pop('eta',0.4)
-        self.params['esubk'] = kwargs.pop('esubk',0.25) # subk emissivity
-        
+        self.params['det_floor'] = kwargs.pop('det_floor',0.01)
+        self.params['fcent'] = kwargs.pop('fcent',148)
+        self.params['bw'] = kwargs.pop('bw',0.25)
+
+        # subk properties
+        self.params['esubk'] = kwargs.pop('esubk',0.25)
         self.params['tsubk'] = kwargs.pop('tsubk',0.3)
         
         self.params['t_hp_min'] = kwargs.pop('t_hp_min',1e-5)
@@ -1010,9 +1111,9 @@ class RadiativeModel(object):
         # window properties
         self.params['window'] = kwargs.pop('window',True)
         # emissivity at center freq
-        self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
+        # self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
         self.params['window_abs_min'] = kwargs.pop('window_abs_min',1e-3)
-        self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
+        # self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
         
         # temperature
         self.params['twin'] = kwargs.pop('window_temp',
@@ -1025,8 +1126,11 @@ class RadiativeModel(object):
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
         
         # nylon conductivity
-        self.params['g_nylon'] = kwargs.pop('g_nylon',1e-4) # W/K
-        
+        # self.params['g_nylon'] = kwargs.pop('g_nylon',3e-5) # W/K
+        self.params['vcs1_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',30) # K
+        self.params['4k_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',0) # K
+        self.params['4k_hwp_dt'] = kwargs.pop('4k_hwp_dt',30)
+
         # aperture diameter
         self.params['aperture'] = kwargs.pop('aperture',0.3) # m
         
@@ -1040,7 +1144,8 @@ class RadiativeModel(object):
             os.mkdir(figdir)
         self.params['figdir'] = figdir
         
-        atmfile = kwargs.pop('atmfile', 'amatm.dat')
+        # atmfile = kwargs.pop('atmfile', 'amatm.dat')
+        atmfile = kwargs.pop('atmfile', 'am_30km.dat')
         if not os.path.exists(atmfile):
             atmfile = os.path.join(datdir, atmfile)
         self.params['atmfile'] = atmfile
@@ -1067,7 +1172,7 @@ class RadiativeModel(object):
         self.params['tvcs2'] = tvcs2[0]
         self.params['tvcs1'] = tvcs1[0]
         self.params['t4k'] = t4k[0]
-        self.params['atmos'] = atmos[0]
+        self.params['atmos'] = bool(atmos[0])
         
     def print_params(self):
         for k in sorted(self.params.keys()):
@@ -1078,7 +1183,7 @@ class RadiativeModel(object):
             return uprint(v, unit='K', format='%8.3f')
         print '%-20s: %s' % ('Sky temp', tprint(self.params['tsky']))
         print '%-20s: %8.3f' % ('Sky emissivity', self.params['esky'])
-        print '%-20s: %8.3f' % ('Atmosphere fraction', self.params['atmos'])
+        print '%-20s: %s' % ('Atmosphere?', self.params['atmos'])
         print '%-20s: %s' % ('VCS2 temp', tprint(self.params['tvcs2']))
         print '%-20s: %s' % ('VCS1 temp', tprint(self.params['tvcs1']))
         print '%-20s: %s' % ('4K temp', tprint(self.params['t4k']))
@@ -1091,101 +1196,141 @@ class RadiativeModel(object):
         a_hp_min = self.params['a_hp_min']
         a_sh_min = self.params['a_sh_min']
         t_ny_min = self.params['t_ny_min']
+        fopts = dict(wavelength=self.wavelength)
         self.filters = {
             'c8-c8': ShaderFilter('c8-c8','spider_filters_c8-c8.txt',
-                                  wavelength=self.wavelength,
                                   t_min=t_sh_min, a_min=a_sh_min,
-                                  norm=norm),
+                                  norm=norm, **fopts),
             'c12-c16': ShaderFilter('c12-c16','spider_filters_c12-c16.txt',
-                                    wavelength=self.wavelength,
                                     t_min=t_sh_min, a_min=a_sh_min,
-                                    norm=norm),
+                                    norm=norm, **fopts),
             'c15': ShaderFilter('c15','spider_filters_c15.txt',
-                                wavelength=self.wavelength,
                                 t_min=t_sh_min, a_min=a_sh_min,
-                                norm=norm),
+                                norm=norm, **fopts),
             'c16-c25': ShaderFilter('c16-c25','spider_filters_c16-c25.txt',
-                                    wavelength=self.wavelength,
                                     t_min=t_sh_min, a_min=a_sh_min,
-                                    norm=norm),
+                                    norm=norm, **fopts),
             'c30': ShaderFilter('c30','spider_filters_c30.txt',
-                                wavelength=self.wavelength,
                                 t_min=t_sh_min, a_min=a_sh_min,
-                                norm=norm),
-            '12icm': MetalMeshFilter('12icm',
-                                     'spider_filters_w1078_12icm.txt',
-                                     wavelength=self.wavelength,
-                                     t_min=t_hp_min, a_min=a_hp_min,
-                                     thickness=2.18, norm=norm),
-            '7icm': MetalMeshFilter('7icm','spider_filters_w1522_7icm.txt',
-                                    wavelength=self.wavelength,
+                                norm=norm, **fopts),
+            '12icm': HotPressFilter('12icm',
+                                    'spider_filters_w1078_12icm.txt',
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm),
-            '4icm': MetalMeshFilter('4icm','spider_filters_4icm.txt',
-                                    wavelength=self.wavelength,
+                                    thickness=2, norm=norm, **fopts),
+            '7icm': HotPressFilter('7icm','spider_filters_w1522_7icm.txt',
+                                   t_min=t_hp_min, a_min=a_hp_min,
+                                   thickness=2.8, norm=norm, **fopts),
+            '4icm': HotPressFilter('4icm','spider_filters_4icm.txt',
+                                   t_min=t_hp_min, a_min=a_hp_min,
+                                   thickness=5, norm=norm, **fopts),
+            '6icm': HotPressFilter('6icm','spider_filters_6icm.txt',
+                                   t_min=t_hp_min, a_min=a_hp_min,
+                                   thickness=3.3, norm=norm, **fopts),
+            '10icm': HotPressFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm),
-            '6icm': MetalMeshFilter('6icm','spider_filters_6icm.txt',
-                                    wavelength=self.wavelength,
+                                    thickness=2, **fopts),
+            '10icm_arc90': HotPressFilter('10icm_arc',
+                                          'spider_filters_w1355_10icm_arc.txt',
+                                          arc=ZitexFilter('ar',thickness=0.406,
+                                                          **fopts),
+                                          t_min=t_hp_min, a_min=a_hp_min,
+                                          thickness=2, **fopts),
+            '10icm_arc150': HotPressFilter('10icm_arc',
+                                           'spider_filters_w1355_10icm_arc.txt',
+                                           arc=ZitexFilter('ar',thickness=0.584,
+                                                           **fopts),
+                                           t_min=t_hp_min, a_min=a_hp_min,
+                                           thickness=2, **fopts),
+            '18icm': HotPressFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
                                     t_min=t_hp_min, a_min=a_hp_min,
-                                    thickness=2.18, norm=norm),
-            '10icm': MetalMeshFilter('10icm',fcent=8.2,width=1.5,amp=0.93,
-                                     wavelength=self.wavelength,
-                                     t_min=t_hp_min, a_min=a_hp_min,
-                                     thickness=2.18),
-            '18icm': MetalMeshFilter('18icm',fcent=17.0,width=2.2,amp=0.93,
-                                     wavelength=self.wavelength,
-                                     t_min=t_hp_min, a_min=a_hp_min,
-                                     thickness=2.18),
-            'nylon': NylonFilter(2.38, wavelength=self.wavelength,
-                                 t_min=t_ny_min, norm=norm),
+                                    thickness=1.1, **fopts),
+            'ar90ny': ZitexFilter('ar90ny',t_min=t_ny_min,
+                                  thickness=0.381, **fopts),
+            'ar150ny': ZitexFilter('ar150ny', t_min=t_ny_min,
+                                   thickness=0.584, **fopts),
+            'ar90pe': ZitexFilter('ar90pe', t_min=t_ny_min,
+                                  thickness=0.406, **fopts),
+            'ar150pe': ZitexFilter('ar150pe', t_min=t_ny_min,
+                                   thickness=0.610, **fopts),
+            'mylar_window': MylarFilter('window', fcent=self.frequency.max(),
+                                        width=0, amp=1.0, thickness=0.01,
+                                        a_min=self.params['window_abs_min'],
+                                        **fopts),
+            'poly_window': PolyFilter('window', fcent=self.frequency.max(),
+                                      width=0, amp=1.0, thickness=3.175,
+                                      a_min=self.params['window_abs_min'],
+                                      **fopts),
+            'poly_window_arc150': PolyFilter('window', fcent=self.frequency.max(),
+                                             width=0, amp=1.0, thickness=3.175,
+                                             a_min=self.params['window_abs_min'],
+                                             arc=ZitexFilter('ar', thickness=0.610,
+                                                             **fopts), **fopts),
+            'poly_window_arc90': PolyFilter('window', fcent=self.frequency.max(),
+                                            width=0, amp=1.0, thickness=3.175,
+                                            a_min=self.params['window_abs_min'],
+                                            arc=ZitexFilter('ar', thickness=0.406,
+                                                            **fopts), **fopts),
+            'nylon': NylonFilter(3.175, t_min=t_ny_min, norm=norm, **fopts),
+            'nylon_arc150': NylonFilter(3.175, t_min=t_ny_min, norm=norm,
+                                        arc=ZitexFilter('ar', thickness=0.584,
+                                                        **fopts),
+                                        **fopts),
+            'nylon_arc90': NylonFilter(3.175, t_min=t_ny_min, norm=norm,
+                                        arc=ZitexFilter('ar', thickness=0.381,
+                                                        **fopts),
+                                        **fopts),
             'cirlex': Cirlex(frequency=self.frequency),
             'quartz': Quartz(frequency=self.frequency),
             }
         # print 'Available filters: %r' % sorted(self.filters.keys())
         return self.filters
-        
-    def load_atm(self,filename=None,fmax=_MAX_FATMOS,emax=_ATMOS_EMIS):
+    
+    def load_atm(self,filename=None,fmax=1000,emax=0.1):
         filename = self.get_param('atmfile',filename)
-        data = np.loadtxt(filename,unpack=True)
+        data = np.loadtxt(filename,unpack=True,comments='#')
         xout = data[0]
-        yout = data[5]
+        yout = data[2]
+        zout = data[1]
         if fmax is not None:
             p = np.where(xout<fmax)[0]
-            f_sky = np.append(np.insert(xout[p],0,0),1e6)
-            t_sky = np.append(np.insert(yout[p],0,0),0)
+            f_atmos = np.append(np.insert(xout[p],0,0),1e6)
+            t_atmos = np.append(np.insert(yout[p],0,0),0)
+            o_atmos = np.append(np.insert(zout[p],0,0),0)
         else:
-            f_sky = np.append(np.insert(xout,0,0),1e6)
-            t_sky = np.append(np.insert(yout,0,0),0)
-        f_sky = threshold(f_sky,low=1e-12)
-        t_sky = threshold(t_sky,low=1e-12)
-        Inu_atmos = blackbody(f_sky,t_sky)
-        self.Inu_atmos = np.where(
-            self.frequency>fmax,
-            emax*blackbody(self.frequency,273.0),
-            np.interp(self.frequency,f_sky,Inu_atmos))
-        return self.Inu_atmos
+            f_atmos = np.append(np.insert(xout,0,0),1e6)
+            t_atmos = np.append(np.insert(yout,0,0),0)
+            o_atmos = np.append(np.insert(zout,0,0),0)
+        f_atmos = threshold(f_atmos,low=1e-12)
+        t_atmos = threshold(t_atmos,low=1e-12)
+        o_atmos = threshold(o_atmos,low=1e-12)
+        Inu_atmos = blackbody(f_atmos,t_atmos)
+        bb = blackbody(self.frequency,273.0)
+        Inu_atmos = np.where(
+            self.frequency>fmax, emax*bb,
+            np.interp(self.frequency,f_atmos,Inu_atmos))
+        self.e_atmos = Inu_atmos/bb
+        self.t_atmos = np.interp(self.frequency,f_atmos,np.exp(-o_atmos))
+        self.bb_atmos = bb
+        # return self.Inu_atmos
     
-    def load_spectrum(self,filename=None):
-        filename = self.get_param('spectfile',filename)
-        f,t = np.loadtxt(filename,unpack=True)
+    def load_spectrum(self):
+        """
+        Simple top-hat band about center frequency
+        """
         fcent = self.get_param('fcent')
-        p = np.where((f<0.8*2*fcent)*(f>fcent/3.0))[0]
-        f = f[p]
-        t = threshold(t[p],low=0)
-        # if fcent < 148: f *= fcent/148.0
-        f = np.append(np.insert(f,0,1),1e6)
-        t = np.append(np.insert(t,0,0),0)
-        l = 300./f*1000.0
-        idx = l.argsort()
-        self.spectrum = np.interp(self.wavelength,l[idx],t[idx])
-        self.spectrum /= self.spectrum.max()
+        bw = self.get_param('bw')
+        flr = self.get_param('det_floor')
+        f = self.frequency
+        t = np.ones_like(f)
+        t[f<fcent*(1-bw/2)] = flr
+        t[f>fcent*(1+bw/2)] = flr
+        self.spectrum = t
         return self.spectrum
         
     def set_band(self,**kwargs):
         res = self.get_param('res',kwargs.pop('res',1000))
         fcent = self.get_param('fcent',kwargs.pop('fcent',148))
-        bw = self.get_param('bw',kwargs.pop('bw',0.40))
+        bw = self.get_param('bw',kwargs.pop('bw',0.25))
         bandlo = self.get_param('bandlo',kwargs.pop('bandlo',3))
         bandhi = self.get_param('bandhi',kwargs.pop('bandhi',1000))
         
@@ -1209,11 +1354,17 @@ class RadiativeModel(object):
         if not self._initialized: self._initialized = True
         
     def run(self, tag=None, plot=False, interactive=False, summary=False,
-            filter_stack={'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
+            display=True,
+            filter_stack={'window': ['poly_window'],
+                          'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                           'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
                           '4k':['10icm','nylon'],
                           '2k':['7icm'],
-                          }, **kwargs):
+                          },
+            filter_offsets={}, **kwargs):
+        
+        # self.set_defaults(**kwargs)
+        self.params.update(kwargs)
         
         # abscissa and conversion factors
         freq = self.frequency
@@ -1222,41 +1373,49 @@ class RadiativeModel(object):
         # aperture area
         area = np.pi*(self.params['aperture']/2.)**2
         
-        # the sky
-        bb_sky = blackbody(freq,self.params['tsky'])*self.params['esky']
-        if self.params['atmos']:
-            bb_sky += self.Inu_atmos
-        Rsky = RadiativeSurface('Sky', trans=0.0, abs=1.0, bb=bb_sky,
-                                wavelength=wlen, frequency=freq,
-                                area=area, incident=False,
-                                verbose=self.verbose)
-        surfaces = [Rsky]
+        opts = dict(wavelength=wlen, frequency=freq,
+                    area=area, verbose=self.verbose)
         
+        # the sky
+        Rsky = RadiativeSurface('Sky', trans=0.0, abs=self.params['esky'],
+                                bb=blackbody(freq,self.params['tsky']),
+                                incident=False, **opts)
+        surfaces = [Rsky]
+        if self.params['atmos']:
+            Ratmos = RadiativeSurface('Atmosphere', trans=self.t_atmos,
+                                      abs=self.e_atmos, bb=self.bb_atmos,
+                                      **opts)
+            surfaces.append(Ratmos)
+        
+        # window
         if self.params['window']:
-            # window spectrum
-            # window_emis = self.params['window_emis'] * \
-            #     (freq/self.params['fcent'])**self.params['window_beta']
-            # window_emis = threshold(window_emis,high=1.0)
-            Fwin = PolyFilter('window', fcent=freq.max(), width=0,
-                              amp=1.0, wavelength=wlen,
-                              thickness=self.params['window_thickness'],
-                              a_min=self.params['window_abs_min'])
+            Fwin = self.filters[filter_stack['window'][0]]
             window_emis = Fwin.get_emis()
             window_trans = 1 - window_emis
-            bb_win = blackbody(freq, self.params['twin'])
+            dt = filter_offsets.get('window',{}).get(Fwin.name,0)
+            bb_win = blackbody(freq, self.params['twin']+dt)
             Rwin = RadiativeSurface('Window', trans=window_trans,
-                                    abs=window_emis, bb=bb_win)
+                                    abs=window_emis, bb=bb_win,
+                                    **opts)
             surfaces.append(Rwin)
         
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage):
-            bb = blackbody(freq,self.params['t%s'%stage])
-            return RadiativeStack(
-                stage.upper(),
-                [FilterSurface('%s %s %s' % (stage.upper(),chr(ord('A')+i),f),
-                               self.filters[f], bb=bb)
-                 for i,f in enumerate(filter_stack[stage])],
-                )
+            T = self.params['t%s'%stage]
+            tdict = filter_offsets.get(stage, {})
+            flist = filter_stack[stage]
+            stack = []
+            for i,f in enumerate(flist):
+                dt = tdict.get(f,0)
+                bb = blackbody(freq, T+dt)
+                tag = ''
+                idx = np.where(np.array(flist)==f)[0]
+                if len(idx)>1:
+                    tag = ' ' + chr(ord('A')+list(idx).index(i))
+                S = FilterSurface('%s %s%s' % (stage.upper(), f, tag),
+                                  self.filters[f], bb=bb, **opts)
+                stack.append(S)
+            return RadiativeStack(stage.upper(), stack, **opts)
         
         Rvcs2 = make_stack('vcs2')
         Rvcs1 = make_stack('vcs1')
@@ -1267,62 +1426,49 @@ class RadiativeModel(object):
             R2k.surfaces += [
                 # hack! spillover from optics sleeve
                 RadiativeSurface('2K Spillover', bb=R2k.surfaces[-1].bb,
-                                 abs=spill)
+                                 abs=spill, **opts)
                 ]
         surfaces += [Rvcs2, Rvcs1, R4k, R2k]
         
         # sub-K loading (use trans=1 to pass through to detector,
         # but bb=0 to ignore loading onto detector)
-        Rsubk = RadiativeSurface('sub-K', abs=self.params['esubk'])
+        Rsubk = RadiativeSurface('sub-K', abs=self.params['esubk'], **opts)
         surfaces.append(Rsubk)
         
         # detector loading with bandpass
         eta = self.params['eta']
         t = self.spectrum # detector FTS spectrum
         Rband = RadiativeSurface('Bandpass', trans=t,
-                                 antenna=True, band=self.id_band2)
+                                 antenna=True, band=self.id_band2,
+                                 **opts)
         surfaces.append(Rband)
-        Rdet = RadiativeSurface('Det', trans=eta, abs=0, ref=1-eta,
-                                antenna=True, band=self.id_band2)
+        Rdet = RadiativeSurface('Det', trans=1-eta, abs=eta,
+                                antenna=True, band=self.id_band2,
+                                **opts)
         surfaces.append(Rdet)
         
         # assemble the whole stack and propagate the sky through it
         self.tag = tag
-        self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky)
-        
-        # second pass to account for loading on nylon
-        if any(['nylon' in f for f in filter_stack.values()]):
-            g_nylon = self.params['g_nylon']
-            if g_nylon and np.isfinite(g_nylon):
-                self.stack.results(display=False)
-                for S in self.stack.surfaces:
-                    stage = S.name.lower()
-                    if stage not in filter_stack: continue
-                    if 'nylon' not in filter_stack[stage]: continue
-                    for SS in S.surfaces:
-                        if 'nylon' in SS.name:
-                            dT = SS.iabs_int / g_nylon
-                            print '%-6s' % stage.upper(), \
-                                'nylon dT = %s' % uprint(dT,'K','%8.3f')
-                            T = self.params['t%s'%stage] + dT
-                            SS.bb = blackbody(freq, T)
-                self.stack.propagate(force=True)
+        self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky,
+                                    **opts)
         
         # print results
-        self.results(summary=summary)
+        self.results(summary=summary,display=display)
         
         # plot results
         if plot:
             self.plot(tag=tag, interactive=interactive)
         return self.stack
     
-    def results(self, summary=False):
-        print '*'*80
-        if hasattr(self,'tag') and self.tag:
-            print 'MODEL:',self.tag.replace('_',' ')
-        print '*'*80
-        self.pretty_print_params()
-        self.stack.results(display_this=False, summary=summary)
+    def results(self, summary=False, display=True):
+        if display:
+            print '*'*80
+            if hasattr(self,'tag') and self.tag:
+                print 'MODEL:',self.tag.replace('_',' ')
+            print '*'*80
+            self.pretty_print_params()
+        self.stack.results(display_this=False, display=display,
+                           summary=summary)
     
     def plot(self, tag=None, interactive=False, **kwargs):
         if not interactive:
@@ -1357,6 +1503,7 @@ class RadiativeModel(object):
             S.plot_abs(ylim=[1e-8,1.1], **pargs)
             S.plot_ref(ylim=[1e-8,1.1], **pargs)
 
+<<<<<<< HEAD
 if __name__ == "__main__":
     
     models = {
@@ -1465,34 +1612,187 @@ if __name__ == "__main__":
             },
         }
     
+=======
+
+def model150to90(model):
+    fstack = model['filter_stack'].copy()
+    foff = model['filter_offsets'].copy()
+    for s in fstack:
+        for idx,ss in enumerate(fstack[s]):
+            ss = ss.replace('arc150','arc90')
+            ss = ss.replace('6icm','4icm')
+            ss = ss.replace('cirlex','quartz')
+            fstack[s][idx] = ss
+    for s in foff:
+        for ss in foff[s].keys():
+            v = foff[s].pop(ss)
+            ss = ss.replace('arc150','arc90')
+            ss = ss.replace('6icm','4icm')
+            ss = ss.replace('cirlex','quartz')
+            foff[s][ss] = v
+    return {'filter_stack': fstack, 'filter_offsets': foff}
+
+models = {
+    'default': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['10icm','nylon'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    '18icm': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['18icm','10icm','nylon'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'hwp': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm','nylon'],
+                         '4k':['cirlex','10icm','nylon'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'nonylon': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm','nylon'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_mylarwindow': {
+        'filter_stack': {'window': ['mylar_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_hotnylon': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'vcs1': {'nylon_arc150': 30}},
+        },
+    'ar_nonylon': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_hwp': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['cirlex','10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_nonylon_hwp': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['cirlex','10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+}
+
+def main(model_class=RadiativeModel):
+>>>>>>> 08c2de41271b522049740af913d662998dfe9560
     import argparse as ap
     P = ap.ArgumentParser(add_help=True)
-    P.add_argument('model',nargs='?',default=1,type=int,
-                   choices=models.keys(), metavar='num',
-                   help='Preset model number. Choices are: %s' % 
-                   ', '.join('%d (%s)' % (k,v['tag']) for k,v in models.items()))
+    P.add_argument('model',nargs='?',default='default',type=str,
+                   choices=models.keys(), metavar='model',
+                   help='Preset model name. Choices are: %s' % 
+                   ', '.join(sorted(models.keys())))
     P.add_argument('-i','--interactive',default=False,
                    action='store_true',help='show plots')
     P.add_argument('-p','--plot',default=False,
                    action='store_true',help='make plots')
     P.add_argument('-s','--summary',default=False,
                    action='store_true',help='print short summary')
+    P.add_argument('-f','--final',default=False,
+                   action='store_true',help='print final surface only')
     P.add_argument('-v','--verbose', default=False,
                    action='store_true',help='verbose mode, for debugging')
+    P.add_argument('--no-window',default=False,action='store_true',
+                   help='No window')
+    P.add_argument('--ground',default=False,action='store_true',
+                   help='Ground loading')
+    P.add_argument('--float',action='store_false',dest='ground',
+                   help='Float loading')
+    P.add_argument('--f90',default=False,action='store_true',
+                   help='90ghz receiver')
+    P.add_argument('--f150', action='store_false',
+                   help='150ghz receiver')
     args = P.parse_args()
     
     if not args.plot: args.interactive = False
     
-    opts = dict(verbose=args.verbose, fcent=148, spectfile='145GHzSpectrum.dat')
-    
+    opts = dict(verbose=args.verbose, fcent=94 if args.f90 else 148)
+
+    if args.ground:
+        opts['tsky'] = 300
+        opts['atmos'] = False
+    if args.no_window:
+        opts['window'] = False
+
     if args.model not in models:
-        raise ValueError,'unrecognized model number %d' % args.model
+        raise ValueError,'unrecognized model ID %s' % args.model
+
+    if args.final:
+        args.summary = False
+        display = False
+    else:
+        display = True
     
     model = models[args.model]
-    if 'opts' in model:
-        opts.update(**model['opts'])
+    if args.f90:
+        model = model150to90(model)
     
-    M = RadiativeModel(**opts)
-    M.run(filter_stack=model['filter_stack'], tag=model['tag'],
-          plot=args.plot, interactive=args.interactive,
-          summary=args.summary)
+    tag = ('90ghz_' if args.f90 else '150ghz_') + args.model
+    if args.no_window: tag += '_nowin'
+    if args.ground: tag += '_300k'
+
+    M = model_class(**opts)
+    stack = M.run(tag=tag, plot=args.plot, interactive=args.interactive,
+                  summary=args.summary, display=display, **model)
+
+    if args.final:
+        stack.surfaces[-1].results()
+
+if __name__ == "__main__":
+    
+    main(model_class=RadiativeModel)
