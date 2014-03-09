@@ -159,7 +159,7 @@ def SSSFTTubeGas(T_min, T_max, L):
 
 	return (A/L)*integrate.trapz(helium_cv_ideal(T), x = T)
 	
-def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo'):
+def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFactor=1.0):
 	
 	#--------------------------------------------------------------------------
 	# Notes:
@@ -193,6 +193,8 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo'):
 	L_SFTVent_24 = 1.27
 	L_SFTVent_45 = 1.524
 
+	#tubes are heat sunk to VCS2 (T4)
+	
 	MTFill24 = SSMTTube(T2,T4,L_MTFill_24,T_SS,k_SS)
 	#print('MTFill metal tube: %1.4f' % MTFill24)
 	MTFill24 += SSMTTubeGas(T2,T4,L_MTFill_24)
@@ -257,35 +259,32 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo'):
 	# Calculating the conductive load through all sorts of flexures
 	#--------------------------------------------------------------------------
 
-	# Relevant lengths in meters
-	L_MTLargeFlex = 0.0127  #0.5 inches
-	L_VCS1LargeFlex = 0.0508  #2 inches
-	L_VCS2LargeFlex = 0.0203  # 0.8 inches
-	L_MTSmallFlex = 0.0330  #1.3 inches
-	L_VCS2SmallFlex = 0.0330 # 1.3 inches
-	L_MTAxFlex = 0.09015
-	L_SFTFLex = 0.03937
-
-	# Calculating heat loads for each junction
-	LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10)
-	SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)
-	LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
-	LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
-	SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
-	MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
-	if (T1 != T2):
-		SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
-	else:
-		SFTFlexToMT = 0
-
-	#--------------------------------------------------------------------------
-
-	#--------------------------------------------------------------------------
-	# Making the final calculations
 	#--------------------------------------------------------------------------
 
 	#Calculating the total conductive load to MT, VCS1 and VCS2 from flexures
 	if config == 'theo':
+		
+		# Relevant lengths in meters
+		L_MTLargeFlex = 0.0127  #0.5 inches
+		L_VCS1LargeFlex = 0.0508  #2 inches
+		L_VCS2LargeFlex = 0.0203  # 0.8 inches
+		L_MTSmallFlex = 0.0330  #1.3 inches
+		L_VCS2SmallFlex = 0.0330 # 1.3 inches
+		L_MTAxFlex = 0.09015
+		L_SFTFLex = 0.03937
+
+		# Calculating heat loads for each junction
+		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10)
+		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)
+		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
+		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
+		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
+		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
+		if (T1 != T2):
+			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
+		else:
+			SFTFlexToMT = 0
+		
 		flexCondLoad1 = 7*SFTFlexToMT+insLoading*insNum
 		flexCondLoad2 = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1-7*SFTFlexToMT \
 		  -(SFTVent12+SFTFill12)
@@ -293,15 +292,39 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo'):
 		flexCondLoad3out = -6*(LFlexToMT+SFlexToMT)-3*MTAxFlextoVCS1
 		flexCondLoad4in = 6*(SFlexToVCS2+LFlexToVCS2)
 		flexCondLoad4out = -6*LFlexToVCS1
+
 	elif config == 'ULDB':
-		flexCondLoad1 = 3*SFTFlexToMT+insLoading*insNum
-		flexCondLoad2 = 2*(LFlexToMT+SFlexToMT)-3*SFTFlexToMT \
-		  -(SFTVent12+SFTFill12)
-		flexCondLoad3in = 2*(LFlexToVCS1)
-		flexCondLoad3out = -2*(LFlexToMT+SFlexToMT)
-		flexCondLoad4in = 2*(SFlexToVCS2+LFlexToVCS2)
-		flexCondLoad4out = -2*LFlexToVCS1
 		
+		# Relevant lengths in meters
+		L_VCS2toMTFlex = 0.03429  #1.35 inches
+		L_VCS2Flex = 0.02921 # 1.15 inches
+		L_VCS2toVCS1 = 0.0508 # 2 inches
+		L_SFTFLex = 0.03937 #using theo SFT $s for now.  
+				
+		# Calculating heat loads for each junction
+		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		FlexToMT = TestLFlexH(T2,T4,L_VCS2toMTFlex,T_G10,k_G10)
+		FlexToVCS1 = TestSFlexH(T3,T4,L_VCS2toVCS1,T_G10,k_G10)
+		FlexToVCS2 = TestLFlexH(T4,T5,L_VCS2Flex,T_G10,k_G10)
+		
+		if (T1 != T2):
+			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
+		else:
+			SFTFlexToMT = 0
+		
+		flexCondLoad1 = 3*SFTFlexToMT+insLoading*insNum
+		flexCondLoad2 = 4*FlexToMT-3*SFTFlexToMT \
+		  -(SFTVent12+SFTFill12)
+		flexCondLoad2 /= flexFactor #playing with improved flexures
+		
+		flexCondLoad3in = 4*FlexToVCS1
+		flexCondLoad3out = 0 #VCS1 not conductively connected to any colder stages
+		flexCondLoad4in = 4*FlexToVCS2
+		flexCondLoad4out = -4*FlexToMT #VCS 2 -> MT connection
+		
+	#--------------------------------------------------------------------------
+	# Making the final calculations
+	#--------------------------------------------------------------------------
 
 	#Adding load from tubing
 	tubeCondLoad1 = (SFTFill12 + SFTVent12)

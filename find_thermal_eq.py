@@ -47,7 +47,7 @@ def find_equilibrium(args):
 	window_VCS1 = insNum*0.030 # 0.030W estimate from current radmodel code
 
 	#window_MT =  insNum*0.08 #80 mW estimate from current radmodel code 
-	#window_VCS1 = insNum*0 # arbitrary nylon hot potato #
+	#window_VCS1 = insNum*1.0 # arbitrary nylon hot potato #
 		
 	window_VCS2 =  insNum*1.5 # kind of made up
 	
@@ -88,13 +88,12 @@ def find_equilibrium(args):
 		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out, 
 		    flexCondLoad1, flexCondLoad2, flexCondLoad3In, 
 		    flexCondLoad3Out, flexCondLoad4In, flexCondLoad4Out) = cond_loads(T_SFT,T_MT,T_VCS1,T_VCS2,T_Shell,
-				sftPumped,sftEmpty,insNum, config = config)
+				sftPumped,sftEmpty,insNum, config = config, flexFactor = args.flexFactor)
 		cfact = 1.2		
 		tubeCondLoad_SFT = cfact*tubeCondLoad1
 		tubeCondLoad_MT = cfact*tubeCondLoad2
 		tubeCondLoad_VCS2 = cfact*(tubeCondLoad4In + tubeCondLoad4Out)
 		
-		#tubes are heat sunk to VCS2 
 		flexCondLoad_SFT = cfact*flexCondLoad1
 		flexCondLoad_MT = cfact*flexCondLoad2
 		flexCondLoad_VCS1 = cfact*(flexCondLoad3In + flexCondLoad3Out)
@@ -106,28 +105,22 @@ def find_equilibrium(args):
 	   		
 		MTLoad = Rad_MT + window_MT  \
 				- Rad_SFTtoMT
-		flexCondLoad_MT /= (np.pi) #playing with improved flexures
 		MTLoad += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
 		
 		SFTLoad = Rad_SFT
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
 		
-		if args.cryoCooler:
-			#cryocooler parameters:
-			T, lift = np.loadtxt('cryotel_GT_23C.txt', unpack = True, delimiter = ',')
-			p = np.polyfit(T, lift, 1) #fitting a line for now since the cooling curve is close
-			lowT = np.array([20, 30, 40])
-			lowlift = np.array([0.124, 0.223, 0.3])
-			p_low = np.polyfit(lowT, lowlift, 1) #linear fit to lower temp data from AKARI
+		#cryocooler parameters:
+		T, lift = np.loadtxt('cryotel_GT_23C.txt', unpack = True, delimiter = ',')
+		p = np.polyfit(T, lift, 1) #fitting a line for now since the cooling curve is close
+		lowT = np.array([20, 30, 40])
+		lowlift = np.array([0.124, 0.223, 0.3])
+		p_low = np.polyfit(lowT, lowlift, 1) #linear fit to lower temp data from AKARI
 			
-			cryocooler = 0.0*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
-			print('VCS1 cryocooler power: %s' % cryocooler)
-			print('VCS1 gas cooling power: %s' % gasCoolingVCS1)
-			
-			
-		else:
-			cryocooler = 0
-			
+		cryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
+		print('VCS1 cryocooler power: %s' % cryocooler)
+		print('VCS1 gas cooling power: %s' % gasCoolingVCS1)
+				
 		VCS1 = Rad_VCS1 + mli_load_VCS1 + window_VCS1 \
 				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - cryocooler 
 		
@@ -136,12 +129,9 @@ def find_equilibrium(args):
 		VCS1 +=  (flexCondLoad_VCS1 - flexCondLoad_MT) 
 		VCS1_load += flexCondLoad_VCS1
 		
-		if args.cryoCooler:
-			cryocooler = 1.0*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
-			print('VCS2 cryocooler power: %s' % cryocooler)
-			print('VCS2 gas cooling power: %s' % gasCoolingVCS2)
-		else:
-			cryocooler = 0
+		cryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
+		print('VCS2 cryocooler power: %s' % cryocooler)
+		print('VCS2 gas cooling power: %s' % gasCoolingVCS2)
 		
 		VCS2 = Rad_VCS2 + mli_load_VCS2 + window_VCS2 \
 				-Rad_VCS1 - gasCoolingVCS2 - cryocooler
@@ -157,16 +147,18 @@ def find_equilibrium(args):
 		if (abs(VCS1) < eps and abs(VCS2) < eps):
 			print(VCS1)
 			print(VCS2)
-			print('MT_load: %s' % MTLoad)
-			print('MT_rad load: %s' % Rad_MT)
-			print('MT flex load: %s' % flexCondLoad_MT)
+			print('MT total load: %s' % MTLoad)
+			print('MT radiative load: %s' % Rad_MT)
+			print('MT flexure load: %s' % flexCondLoad_MT)
 			print('MT tube load: %s' % tubeCondLoad_MT)
+			print('MT window load: %s' % window_MT)
 			
 			print('VCS1_load: %s' %VCS1_load)
 			print('VCS1_rad: %s' % Rad_VCS1)
 			print('VCS1_mli: %s' % mli_load_VCS1)
 			print('VCS2_load: %s' %VCS2_load)
-			print('Holdtime: %s' % holdtime(mdot, numLiters = numLiters))
+			print('mdot (g/s): %s, Holdtime (days): %s' % (mdot, holdtime(mdot, numLiters = numLiters)))
+			print('VCS1 Temp: %s, VCS2 Temp: %s' % (T_VCS1 , T_VCS2))
 			
 			return T_VCS1 , T_VCS2, mdot
 		# Cutting back on our precision
@@ -183,8 +175,11 @@ def find_equilibrium(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Thermal model')
-	parser.add_argument('-cooler', dest='cryoCooler', action='store_true',help='Run with cryocooler enabled?')
 	parser.add_argument('-ULDB', dest='ULDB', action='store_true', help='Run ULDB model instead of Theo?')
+	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
+	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 1.0, help='Number of OCS coolers')
+	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
+
 
 	args = parser.parse_args()
 	
