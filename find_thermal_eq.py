@@ -19,7 +19,7 @@ def find_equilibrium(args):
 	#Calculating the starting net heat load on VCS1 and VCS2
 	VCS1 = 1
 	VCS2 = 2
-	#setting initial temperatures and flows
+	#setting initial temperatures and flows -20C = 253.15
 	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.2, 10., 100., 300.)
 	mdot = 0.030
 	
@@ -34,6 +34,10 @@ def find_equilibrium(args):
 		insNum = 1.0
 		config = 'ULDB'
 		numLiters = 120.0
+	elif args.ULDB2:
+		insNum = 1.0
+		config = 'ULDB2'
+		numLiters = 120.0		
 	else:
 		config = 'theo'
 		insNum = 6
@@ -176,6 +180,7 @@ def find_equilibrium(args):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Thermal model')
 	parser.add_argument('-ULDB', dest='ULDB', action='store_true', help='Run ULDB model instead of Theo?')
+	parser.add_argument('-ULDB2', dest='ULDB2', action='store_true', help='Run ULDB *2* model instead of Theo?')
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 1.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
@@ -184,4 +189,4 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	
 	T_VCS1 , T_VCS2, mdot = find_equilibrium(args)
-	print T_VCS1, T_VCS2, mdot
+	

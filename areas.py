@@ -52,7 +52,7 @@ def load_areas(config='theo'):
 		VCS2_cyl = 2*np.pi*R_VCS2*h_VCS2    #[cm**2]
 		VCS2_Area = 2*VCS2_disk+VCS2_cyl   #[cm**2]
 		
-	elif config =='ULDB':
+	elif config =='ULDB' or config=='ULDB2':
 		
 		#Area of the SFT, estimate based on SolidWorks drawings of testCryostat
 		SFT_Area = 2*1792.88307 #[cm**2]

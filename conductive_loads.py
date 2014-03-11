@@ -321,6 +321,35 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad3out = 0 #VCS1 not conductively connected to any colder stages
 		flexCondLoad4in = 4*FlexToVCS2
 		flexCondLoad4out = -4*FlexToMT #VCS 2 -> MT connection
+	
+	elif config == 'ULDB2':	
+		
+		# Relevant lengths in meters
+		L_VCS1toMTFlex = 0.03429  #1.35 inches
+		L_VCS2Flex = 0.02921 # 1.15 inches
+		L_VCS2toVCS1 = 0.0508 # 2 inches
+		L_SFTFLex = 0.03937 #using theo SFT $s for now.  
+			
+		# Calculating heat loads for each junction
+		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		FlexToMT = TestLFlexH(T2,T3,L_VCS1toMTFlex,T_G10,k_G10) #MT ->VCS1
+		FlexToVCS1 = TestLFlexH(T3,T4,L_VCS2toVCS1,T_G10,k_G10) #VCS1 ->VCS2
+		FlexToVCS2 = TestLFlexH(T4,T5,L_VCS2Flex,T_G10,k_G10)
+	
+		if (T1 != T2):
+			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
+		else:
+			SFTFlexToMT = 0
+	
+		flexCondLoad1 = 3*SFTFlexToMT+insLoading*insNum
+		flexCondLoad2 = 4*FlexToMT-3*SFTFlexToMT \
+		  -(SFTVent12+SFTFill12)
+		flexCondLoad2 /= flexFactor #playing with improved flexures
+	
+		flexCondLoad3in = 4*FlexToVCS1
+		flexCondLoad3out = -4*FlexToMT #VCS1->MT
+		flexCondLoad4in = 4*FlexToVCS2
+		flexCondLoad4out = -4*FlexToVCS1 #VCS 2 -> VCS1 connection
 		
 	#--------------------------------------------------------------------------
 	# Making the final calculations
