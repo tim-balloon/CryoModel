@@ -494,6 +494,8 @@ class RadiativeSurface(object):
         self.iabs = 0.0
         self.iref_list = []
         self.iref = 0.0
+        self.iload_list = []
+        self.iload = 0.0
         if self.incident:
             
             # inherit some common stuff from the incident source
@@ -514,6 +516,7 @@ class RadiativeSurface(object):
                 if not np.all(eloc==0):
                     self.iabs_list = [('%s abs %s' % (iname, self.name),
                                        ii*eloc) for iname, ii in ilist]
+                    self.iload_list = self.iabs_list
                 # reflected off this surface
                 if not np.all(rloc==0):
                     self.iref_list = [('%s ref %s' % (iname, self.name),
@@ -526,13 +529,12 @@ class RadiativeSurface(object):
             self.iemis = np.sum([x[1] for x in self.iemis_list], axis=0)
         if len(self.itrans_list):
             self.itrans = np.sum([x[1] for x in self.itrans_list], axis=0)
-        else: self.itrans = 0.0
         if len(self.iabs_list):
             self.iabs = np.sum([x[1] for x in self.iabs_list], axis=0)
-        else: self.iabs = 0.0
         if len(self.iref_list):
             self.iref = np.sum([x[1] for x in self.iref_list], axis=0)
-        else: self.iref = 0.0
+        if len(self.iload_list):
+            self.iload = np.sum([x[1] for x in self.iload_list], axis=0)
         
     def results(self, filename=None, mode='w', display=True, summary=False):
         if isarr(self.frequency):
@@ -545,10 +547,12 @@ class RadiativeSurface(object):
             self.iemis_int = integrate(conv*self.iemis, freq, idx=self.band)
             self.iabs_int = integrate(conv*self.iabs, freq, idx=self.band)
             self.iref_int = integrate(conv*self.iref, freq, idx=self.band)
+            self.iload_int = integrate(conv*self.iload, freq, idx=self.band)
             self.iemis_list_int = []
             self.itrans_list_int = []
             self.iabs_list_int = []
             self.iref_list_int = []
+            self.iload_list_int = []
             if len(self.iemis_list):
                 self.iemis_list_int = [(x[0],
                                         integrate(conv*x[1], freq, idx=self.band))
@@ -565,6 +569,10 @@ class RadiativeSurface(object):
                 self.iref_list_int = [(x[0],
                                        integrate(conv*x[1], freq, idx=self.band))
                                       for x in self.iref_list]
+            if len(self.iload_list):
+                self.iload_list_int = [(x[0],
+                                        integrate(conv*x[1], freq, idx=self.band))
+                                       for x in self.iload_list]
         
         if not display: return
         
@@ -624,7 +632,24 @@ class RadiativeSurface(object):
                     f.write('  %-15s%s %s %10.3f%%\n' %
                             (tag, tag2, uprint(x[1]),
                              x[1]/self.iref_int*100))
-        
+        f.write('%-12s: %s %10.3f%%\n' % 
+                ('LOADING',uprint(self.iload_int), self.iload_int/norm*100))
+        if not summary:
+            if self.iload_int:
+                for x in self.iload_list_int:
+                    tag,rem = x[0].split('emis')
+                    tag = tag.strip()
+                    if hasattr(self,'surfaces'):
+                        if 'ref' in rem:
+                            tag2 = 'to  %-15s' % rem.split('ref')[-1].strip()
+                        elif 'abs' in rem:
+                            tag2 = 'to %-15s' % rem.split('abs')[-1].strip()
+                        else:
+                            tag2 = ''
+                    else: tag2 = ''
+                    f.write('  %-15s%s %s %10.3f%%\n' %
+                            (tag, tag2, uprint(x[1]),
+                             x[1]/self.iload_int*100))
         if filename is not None:
             f.close()
         
@@ -700,6 +725,16 @@ class RadiativeSurface(object):
         """Reflected power broken down into components"""
         self.checkprop('iref_list', incident)
         return self.iref_list
+    
+    def get_iload(self, incident=None):
+        """Load power, given incident stage"""
+        self.checkprop('iload', incident)
+        return self.iload
+    
+    def get_iload_list(self, incident=None):
+        """Load power broken down into components"""
+        self.checkprop('iload_list', incident)
+        return self.iload_list
     
     def get_norm_spec(self,attr):
         if not hasattr(self,attr): return None, 0
@@ -932,12 +967,14 @@ class FilterSurface(RadiativeSurface):
 
 class RadiativeStack(RadiativeSurface):
     
-    def __init__(self, name, surfaces, incident=None, **kwargs):
+    def __init__(self, name, surfaces, incident=None, outer_ref_load=False,
+                 **kwargs):
         super(RadiativeStack, self).__init__(name, **kwargs)
         self.surfaces = surfaces
         from collections import OrderedDict
         self.surfdict = OrderedDict((x.name.lower(),x) for x in self.surfaces)
         self.incident = incident
+        self.outer_ref_load = outer_ref_load
         if incident is not None: self.propagate(incident)
     
     def propagate(self, incident=None, force=False):
@@ -958,6 +995,7 @@ class RadiativeStack(RadiativeSurface):
         self.iabs_list = []
         self.iref_list = []
         self.iemis_list = []
+        self.iload_list = []
         self.trans = 1.0
         self.abs = 0.0
         self.ref = 0.0
@@ -973,11 +1011,15 @@ class RadiativeStack(RadiativeSurface):
             rcur = S.get_ref()
             # update absorbed power sourcs
             self.iabs_list.extend(S.get_iabs_list())
-            # update reflected power sources. NB: totally reflected power is
-            # transmitted twice through previous surfaces
+            self.iload_list.extend(S.get_iload_list())
+            # update reflected power sources. 
             # rlist = [(rname, rr*self.trans) for rname,rr in S.get_iref_list()]
             rlist = S.get_iref_list()
             self.iref_list.extend(rlist)
+            # treat reflected terms as loads on the current stage (pessimistic limit)
+            if not self.outer_ref_load or S != self.surfaces[0]:
+                self.iload_list.extend(rlist)
+            # reflectivity
             # self.ref += rcur * self.trans * self.trans
             self.ref += rcur * self.trans
             # absorptivity
@@ -1007,6 +1049,9 @@ class RadiativeStack(RadiativeSurface):
         if len(self.iref_list):
             self.iref = np.sum([x[1] for x in self.iref_list], axis=0)
         else: self.iref = 0
+        if len(self.iload_list):
+            self.iload = np.sum([x[1] for x in self.iload_list], axis=0)
+        else: self.iload = 0
     
     def checkinc(self, incident, force=False):
         if incident is None:
@@ -1140,8 +1185,6 @@ class RadiativeModel(object):
         self.params['datdir'] = datdir
         
         figdir = kwargs.pop('figdir', os.path.join(thisdir, 'figs'))
-        if not os.path.exists(figdir):
-            os.mkdir(figdir)
         self.params['figdir'] = figdir
         
         # atmfile = kwargs.pop('atmfile', 'amatm.dat')
@@ -1400,7 +1443,7 @@ class RadiativeModel(object):
             surfaces.append(Rwin)
         
         # assemble the filter stages into RadiativeStack objects
-        def make_stack(stage):
+        def make_stack(stage,outer_ref_load=False):
             T = self.params['t%s'%stage]
             tdict = filter_offsets.get(stage, {})
             flist = filter_stack[stage]
@@ -1415,9 +1458,10 @@ class RadiativeModel(object):
                 S = FilterSurface('%s %s%s' % (stage.upper(), f, tag),
                                   self.filters[f], bb=bb, **opts)
                 stack.append(S)
-            return RadiativeStack(stage.upper(), stack, **opts)
+            return RadiativeStack(stage.upper(), stack, 
+                                  outer_ref_load=outer_ref_load, **opts)
         
-        Rvcs2 = make_stack('vcs2')
+        Rvcs2 = make_stack('vcs2', outer_ref_load=True)
         Rvcs1 = make_stack('vcs1')
         R4k = make_stack('4k')
         R2k = make_stack('2k')
@@ -1502,6 +1546,25 @@ class RadiativeModel(object):
             S.plot_trans(ylim=[1e-8,1.1], **pargs)
             S.plot_abs(ylim=[1e-8,1.1], **pargs)
             S.plot_ref(ylim=[1e-8,1.1], **pargs)
+
+def filter_load(model_obj, t2k, t4k, tvcs1, tvcs2, twin, n_inserts, **params):
+    stack = model_obj.run(display=False, plot=False, twin=twin,
+                          tvcs2=tvcs2, tvcs1=tvcs1, t4k=t4k, t2k=t2k,
+                          **params)
+    # print '*'*20
+    # model_obj.pretty_print_params()
+    # print '*'*20
+    surfs = stack.surfdict
+    window_VCS2 = surfs['vcs2'].iload_int * n_inserts
+    if np.isnan(window_VCS2):
+        raise ValueError,'NaN!'
+    window_VCS1 = surfs['vcs1'].iload_int * n_inserts
+    if np.isnan(window_VCS1):
+        raise ValueError,'NaN!'
+    window_MT = surfs['4k'].iload_int * n_inserts
+    if np.isnan(window_MT):
+        raise ValueError,'NaN!'
+    return window_MT, window_VCS1, window_VCS2
 
 def model150to90(model):
     fstack = model['filter_stack'].copy()
@@ -1637,29 +1700,39 @@ def main(model_class=RadiativeModel):
                    action='store_true',help='verbose mode, for debugging')
     P.add_argument('--no-window',default=False,action='store_true',
                    help='No window')
+    P.add_argument('--no-atm',default=False,action='store_true',
+                   help='No atmosphere')
     P.add_argument('--ground',default=False,action='store_true',
                    help='Ground loading')
-    P.add_argument('--float',action='store_false',dest='ground',
+    P.add_argument('--float',default=False,action='store_false',dest='ground',
                    help='Float loading')
+    P.add_argument('-t','--tload',default=None,action='store',type=float,
+                   help='Load temperature')
     P.add_argument('--f90',default=False,action='store_true',
                    help='90ghz receiver')
-    P.add_argument('--f150', action='store_false',
+    P.add_argument('--f150',action='store_false',dest='f90',
                    help='150ghz receiver')
+    P.add_argument('--tvcs1',action='store',type=float,default=35,
+                   help='VCS1 temperature')
+    P.add_argument('--tvcs2',action='store',type=float,default=130,
+                   help='VCS2 temperature')
     args = P.parse_args()
     
     if not args.plot: args.interactive = False
     
-    opts = dict(verbose=args.verbose, fcent=94 if args.f90 else 148)
-
+    opts = dict(verbose=args.verbose, fcent=94 if args.f90 else 148,
+                atmos=not args.no_atm, window=not args.no_window,
+                tvcs2=args.tvcs2, tvcs1=args.tvcs1)
+    
     if args.ground:
-        opts['tsky'] = 300
-        opts['atmos'] = False
-    if args.no_window:
-        opts['window'] = False
-
+        opts['atmfile'] = 'am_01km.dat'
+    
+    if args.tload is not None:
+        opts['tsky'] = args.tload
+    
     if args.model not in models:
         raise ValueError,'unrecognized model ID %s' % args.model
-
+    
     if args.final:
         args.summary = False
         display = False
@@ -1672,8 +1745,9 @@ def main(model_class=RadiativeModel):
     
     tag = ('90ghz_' if args.f90 else '150ghz_') + args.model
     if args.no_window: tag += '_nowin'
-    if args.ground: tag += '_300k'
-
+    if args.ground: tag += '_gnd'
+    if args.tload is not None: tag += '_%dk' % int(args.tload)
+    
     M = model_class(**opts)
     stack = M.run(tag=tag, plot=args.plot, interactive=args.interactive,
                   summary=args.summary, display=display, **model)
