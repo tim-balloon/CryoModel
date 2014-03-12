@@ -47,9 +47,10 @@ def find_equilibrium(args):
 	#window_MT =  insNum*0.05 #50 mW estimate
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	
+	capLoad = 0.008 #~50mW / 6 for capillary box
 	window_MT =  insNum*0.01 #10 mW estimate from current radmodel code 
 	window_VCS1 = insNum*0.030 # 0.030W estimate from current radmodel code
-
+	
 	#window_MT =  insNum*0.08 #80 mW estimate from current radmodel code 
 	#window_VCS1 = insNum*1.0 # arbitrary nylon hot potato #
 		
@@ -107,7 +108,7 @@ def find_equilibrium(args):
 		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
 		l = 21. #Helium heat of evaporization [J/g]
 	   		
-		MTLoad = Rad_MT + window_MT  \
+		MTLoad = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MTLoad += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
 		
