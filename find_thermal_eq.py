@@ -14,6 +14,7 @@ from conductive_loads import *
 from gas_props import *
 import argparse
 
+from radmodel import *
 
 def find_equilibrium(args):
 	#Calculating the starting net heat load on VCS1 and VCS2
@@ -48,13 +49,29 @@ def find_equilibrium(args):
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	
 	capLoad = 0.008 #~50mW / 6 for capillary box
+	
 	window_MT =  insNum*0.004 #4 mW estimate from current radmodel code with nylon as upper bound
 	window_VCS1 = insNum*0.030 # 2x current radmodel code estimate 		
 	window_VCS2 =  insNum*1.2 # current radmodel code estimate
 	
 	#window_VCS1 = insNum*0.13 # 2x current radmodel code estimate 		
 	#window_VCS2 =  insNum*7 # current radmodel code estimate
+	#window_MT =  insNum*0.01 #10 mW estimate from current radmodel code 
+	#window_VCS1 = insNum*0.030 # 0.030W estimate from current radmodel code
+        
+	#window_MT =  insNum*0.08 #80 mW estimate from current radmodel code 
+	#window_VCS1 = insNum*1.0 # arbitrary nylon hot potato #
+		
 	
+        # filter model
+        # TODO: add options for different loads at the aperture
+        # (cf. radmodel.main())
+        if args.mylarWindow:
+                radmodel_params = models['ar_mylarwindow_nonylon']
+        else:
+                radmodel_params = models['ar_nonylon']
+        M = RadiativeModel()
+        
 	#Counter and maximum number of iterations
 	n = 1
 	maxIter = 500
@@ -63,8 +80,9 @@ def find_equilibrium(args):
 	eps = 0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
-	gain = 0.025
-		
+	# gain = 0.025
+	gain = 0.05
+        
 	while n <=maxIter:
 		if (abs(VCS1) > abs(VCS2)):
 			if (VCS1 > 0):
@@ -87,6 +105,13 @@ def find_equilibrium(args):
 			e_Al=0.15, alpha=0.15, beta=4.0e-3, config = config)
 		Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
 		
+                window_MT, window_VCS1, window_VCS2 = \
+                        filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
+                                    insNum, **radmodel_params)
+                print('VCS2 window power: %s' % window_VCS2)
+                print('VCS1 window power: %s' % window_VCS1)
+                print('MT window power: %s' % window_MT)
+                
 		##CONDUCTION through flexures and stainless tubes##
 		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out, 
 		    flexCondLoad1, flexCondLoad2, flexCondLoad3In, 
@@ -187,7 +212,7 @@ if __name__ == '__main__':
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 1.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
-
+        parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
 
 	args = parser.parse_args()
 	
