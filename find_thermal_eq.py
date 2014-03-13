@@ -103,7 +103,7 @@ def find_equilibrium(args):
 			
 			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = \
 				mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
-					p_ins=1e-2, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config)
+					p_ins=1e-4, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config)
 			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
 					
 		else:			
@@ -119,9 +119,9 @@ def find_equilibrium(args):
 		window_MT, window_VCS1, window_VCS2 = \
 		         filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
 		                     insNum, **radmodel_params)
-		print('VCS2 window power: %s' % window_VCS2)
-		print('VCS1 window power: %s' % window_VCS1)
-		print('MT window power: %s' % window_MT)
+		#print('VCS2 window power: %s' % window_VCS2)
+		#print('VCS1 window power: %s' % window_VCS1)
+		#print('MT window power: %s' % window_MT)
  
 		##CONDUCTION through flexures and stainless tubes##
 		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out, 

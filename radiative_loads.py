@@ -33,8 +33,8 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 	N1_s = N1 / t1
 	N2_s = N2 / t2
 	
-	Rad_VCS1 = mli_keller.P_tot(p_ins, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
-	Rad_VCS2 = mli_keller.P_tot(p_ins, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
+	Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
+	Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
 	Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
 	RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
 	
