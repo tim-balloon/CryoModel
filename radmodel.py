@@ -1641,6 +1641,15 @@ models = {
                          },
         'filter_offsets': {},
         },
+    'ar_mylarwindow_nonylon': {
+        'filter_stack': {'window': ['mylar_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
     'ar_hotnylon': {
         'filter_stack': {'window': ['poly_window_arc150'],
                          'vcs2':['c15','c15','c30','c30'],

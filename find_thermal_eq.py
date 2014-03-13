@@ -60,7 +60,10 @@ def find_equilibrium(args):
         # filter model
         # TODO: add options for different loads at the aperture
         # (cf. radmodel.main())
-        radmodel_params = models['ar_nonylon']
+        if args.mylarWindow:
+                radmodel_params = models['ar_mylarwindow_nonylon']
+        else:
+                radmodel_params = models['ar_nonylon']
         M = RadiativeModel()
         
 	#Counter and maximum number of iterations
@@ -199,7 +202,7 @@ if __name__ == '__main__':
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 1.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
-
+        parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
 
 	args = parser.parse_args()
 	
