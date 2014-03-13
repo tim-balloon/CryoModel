@@ -317,7 +317,7 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad2in = 4*FlexToMT
 		flexCondLoad2out = -3*SFTFlexToMT \
 			-(SFTVent12+SFTFill12)
-		flexCondLoad2 /= flexFactor #playing with improved flexures
+		flexCondLoad2in /= flexFactor #playing with improved flexures
 		
 		flexCondLoad3in = 4*FlexToVCS1
 		flexCondLoad3out = 0 #VCS1 not conductively connected to any colder stages

@@ -81,8 +81,9 @@ def find_equilibrium(args):
 	sfteps = 0.0005
 	DeltaT = 0.02
 	#gain = 0.025
-	gain = 0.05
-        
+	#gain = 0.05
+	gain = 0.1
+	    
 	while n <=maxIter:
 		if (abs(VCS1) > abs(VCS2)):
 			if (VCS1 > 0):
@@ -119,8 +120,8 @@ def find_equilibrium(args):
 		window_MT, window_VCS1, window_VCS2 = \
 		         filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
 		                     insNum, **radmodel_params)
-		#print('VCS2 window power: %s' % window_VCS2)
-		#print('VCS1 window power: %s' % window_VCS1)
+		#print('TVCS2: %s, VCS2 window power: %s' % (T_VCS2, window_VCS2))
+		#print('TVCS1: %s, VCS1 window power: %s' % (T_VCS1, window_VCS1))
 		#print('MT window power: %s' % window_MT)
  
 		##CONDUCTION through flexures and stainless tubes##
@@ -142,11 +143,13 @@ def find_equilibrium(args):
 		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
 		l = 21. #Helium heat of evaporization [J/g]
 	   		
-		MTLoad = capLoad + Rad_MT + window_MT  \
+		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
-		MTLoad += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
+		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
 		
-		MTLoadprint = MTLoad + tubeCondLoad_SFT + Rad_SFTtoMT
+		MTLoad = capLoad + Rad_MT + window_MT \
+				+ flexCondLoad2in + tubeCondLoad_MT
+				
 		SFTLoad = Rad_SFT
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
 		
@@ -176,7 +179,7 @@ def find_equilibrium(args):
 		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
 		VCS2_load += cfact*flexCondLoad4In + cfact*tubeCondLoad4In
 		
-		mdot = MTLoad / l
+		mdot = MT / l
 		
 		#print VCS1, VCS2, mdot
 		#Check if loads ~ zero
@@ -200,9 +203,11 @@ def find_equilibrium(args):
 			print('Aperture  | %1.2e W | %1.2e W | %1.2e W |' % (window_MT, window_VCS1, window_VCS2))
 			print('Radiative | %1.2e W | %1.2e W | %1.2e W |' % (Rad_MT, Rad_VCS1, Rad_VCS2))
 			#print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
-			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' % (flexCondLoad2in, flexCondLoad3In, flexCondLoad4In))
-			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W |' % (tubeCondLoad_MT, 0, tubeCondLoad_VCS2))
-			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoadprint, VCS1_load, VCS2_load))
+			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' \
+				% (cfact*flexCondLoad2in, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
+			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W |' \
+				% (tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
+			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoad, VCS1_load, VCS2_load))
 			
 			return T_VCS1 , T_VCS2, mdot
 		# Cutting back on our precision
