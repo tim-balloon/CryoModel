@@ -641,9 +641,9 @@ class RadiativeSurface(object):
                     tag = tag.strip()
                     if hasattr(self,'surfaces'):
                         if 'ref' in rem:
-                            tag2 = 'to  %-15s' % rem.split('ref')[-1].strip()
+                            tag2 = 'ref %-15s' % rem.split('ref')[-1].strip()
                         elif 'abs' in rem:
-                            tag2 = 'to %-15s' % rem.split('abs')[-1].strip()
+                            tag2 = 'abs %-15s' % rem.split('abs')[-1].strip()
                         else:
                             tag2 = ''
                     else: tag2 = ''
@@ -1573,14 +1573,14 @@ def model150to90(model):
         for idx,ss in enumerate(fstack[s]):
             ss = ss.replace('arc150','arc90')
             ss = ss.replace('6icm','4icm')
-            ss = ss.replace('cirlex','quartz')
+            # ss = ss.replace('cirlex','quartz')
             fstack[s][idx] = ss
     for s in foff:
         for ss in foff[s].keys():
             v = foff[s].pop(ss)
             ss = ss.replace('arc150','arc90')
             ss = ss.replace('6icm','4icm')
-            ss = ss.replace('cirlex','quartz')
+            # ss = ss.replace('cirlex','quartz')
             foff[s][ss] = v
     return {'filter_stack': fstack, 'filter_offsets': foff}
 
@@ -1631,6 +1631,16 @@ models = {
                          },
         'filter_offsets': {},
         },
+    'ar_vcs2nylon': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['nylon_arc150','c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm',
+                                 'nylon_arc150'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'vcs2':{'nylon_arc150': 50}},
+        },
     'ar_mylarwindow': {
         'filter_stack': {'window': ['mylar_window'],
                          'vcs2':['c15','c15','c30','c30'],
@@ -1649,6 +1659,15 @@ models = {
                          '2k':['6icm'],
                          },
         'filter_offsets': {},
+        },
+    'ar_mylarwindow_nonylon_hothwp': {
+        'filter_stack': {'window': ['mylar_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['cirlex','cirlex','10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'4k': {'cirlex': 30}},
         },
     'ar_hotnylon': {
         'filter_stack': {'window': ['poly_window_arc150'],
@@ -1683,10 +1702,19 @@ models = {
         'filter_stack': {'window': ['poly_window_arc150'],
                          'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm'],
-                         '4k':['cirlex','10icm_arc150','nylon_arc150'],
+                         '4k':['cirlex','cirlex','10icm_arc150','nylon_arc150'],
                          '2k':['6icm'],
                          },
         'filter_offsets': {},
+        },
+    'ar_nonylon_hothwp': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['cirlex','cirlex','10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'4k': {'cirlex': 30}},
         },
 }
 
