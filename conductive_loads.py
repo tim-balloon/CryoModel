@@ -286,8 +286,9 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 			SFTFlexToMT = 0
 		
 		flexCondLoad1 = 7*SFTFlexToMT+insLoading*insNum
-		flexCondLoad2 = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1-7*SFTFlexToMT \
-		  -(SFTVent12+SFTFill12)
+		flexCondLoad2in = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1
+		flexCondLoad2out = -7*SFTFlexToMT \
+			-(SFTVent12+SFTFill12)
 		flexCondLoad3in = 6*(LFlexToVCS1)
 		flexCondLoad3out = -6*(LFlexToMT+SFlexToMT)-3*MTAxFlextoVCS1
 		flexCondLoad4in = 6*(SFlexToVCS2+LFlexToVCS2)
@@ -313,8 +314,9 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 			SFTFlexToMT = 0
 		
 		flexCondLoad1 = 3*SFTFlexToMT+insLoading*insNum
-		flexCondLoad2 = 4*FlexToMT-3*SFTFlexToMT \
-		  -(SFTVent12+SFTFill12)
+		flexCondLoad2in = 4*FlexToMT
+		flexCondLoad2out = -3*SFTFlexToMT \
+			-(SFTVent12+SFTFill12)
 		flexCondLoad2 /= flexFactor #playing with improved flexures
 		
 		flexCondLoad3in = 4*FlexToVCS1
@@ -342,9 +344,10 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 			SFTFlexToMT = 0
 	
 		flexCondLoad1 = 3*SFTFlexToMT+insLoading*insNum
-		flexCondLoad2 = 4*FlexToMT-3*SFTFlexToMT \
-		  -(SFTVent12+SFTFill12)
-		flexCondLoad2 /= flexFactor #playing with improved flexures
+		flexCondLoad2in = 4*FlexToMT
+		flexCondLoad2out = -3*SFTFlexToMT \
+			-(SFTVent12+SFTFill12)
+		flexCondLoad2in /= flexFactor #playing with improved flexures
 	
 		flexCondLoad3in = 4*FlexToVCS1
 		flexCondLoad3out = -4*FlexToMT #VCS1->MT
@@ -362,7 +365,7 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 	tubeCondLoad4in  = MTFill45 + MTVent45 + SFTFill45 + SFTVent45
 	
 	return (tubeCondLoad1, tubeCondLoad2, tubeCondLoad4in, tubeCondLoad4out, 
-	    flexCondLoad1, flexCondLoad2, flexCondLoad3in, 
+	    flexCondLoad1, flexCondLoad2in, flexCondLoad2out, flexCondLoad3in, 
 	    flexCondLoad3out, flexCondLoad4in, flexCondLoad4out)
 	
 

@@ -80,7 +80,7 @@ def find_equilibrium(args):
 	eps = 0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
-	# gain = 0.025
+	#gain = 0.025
 	gain = 0.05
         
 	while n <=maxIter:
@@ -125,7 +125,7 @@ def find_equilibrium(args):
  
 		##CONDUCTION through flexures and stainless tubes##
 		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out, 
-		    flexCondLoad1, flexCondLoad2, flexCondLoad3In, 
+		    flexCondLoad1, flexCondLoad2in, flexCondLoad2out, flexCondLoad3In, 
 		    flexCondLoad3Out, flexCondLoad4In, flexCondLoad4Out) = cond_loads(T_SFT,T_MT,T_VCS1,T_VCS2,T_Shell,
 				sftPumped,sftEmpty,insNum, config = config, flexFactor = args.flexFactor)
 		cfact = 1.2		
@@ -134,7 +134,7 @@ def find_equilibrium(args):
 		tubeCondLoad_VCS2 = cfact*(tubeCondLoad4In + tubeCondLoad4Out)
 		
 		flexCondLoad_SFT = cfact*flexCondLoad1
-		flexCondLoad_MT = cfact*flexCondLoad2
+		flexCondLoad_MT = cfact*(flexCondLoad2in + flexCondLoad2out)
 		flexCondLoad_VCS1 = cfact*(flexCondLoad3In + flexCondLoad3Out)
 		flexCondLoad_VCS2 = cfact*(flexCondLoad4In + flexCondLoad4Out)
 		#gas cooling power
@@ -146,6 +146,7 @@ def find_equilibrium(args):
 				- Rad_SFTtoMT
 		MTLoad += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
 		
+		MTLoadprint = MTLoad + tubeCondLoad_SFT + Rad_SFTtoMT
 		SFTLoad = Rad_SFT
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
 		
@@ -163,8 +164,8 @@ def find_equilibrium(args):
 		
 		VCS1_load = Rad_VCS1 + window_VCS1
 		
-		VCS1 +=  (flexCondLoad_VCS1 - flexCondLoad_MT) 
-		VCS1_load += flexCondLoad_VCS1
+		VCS1 +=  flexCondLoad_VCS1 
+		VCS1_load += cfact*flexCondLoad3In
 		
 		ocsCryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
 		
@@ -173,7 +174,7 @@ def find_equilibrium(args):
 		VCS2_load = Rad_VCS2  + window_VCS2 
 		
 		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
-		VCS2_load += flexCondLoad_VCS2 + tubeCondLoad_VCS2
+		VCS2_load += cfact*flexCondLoad4In + cfact*tubeCondLoad4In
 		
 		mdot = MTLoad / l
 		
@@ -199,9 +200,9 @@ def find_equilibrium(args):
 			print('Aperture  | %1.2e W | %1.2e W | %1.2e W |' % (window_MT, window_VCS1, window_VCS2))
 			print('Radiative | %1.2e W | %1.2e W | %1.2e W |' % (Rad_MT, Rad_VCS1, Rad_VCS2))
 			#print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
-			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' % (flexCondLoad_MT, flexCondLoad_VCS1, flexCondLoad_VCS2))
+			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' % (flexCondLoad2in, flexCondLoad3In, flexCondLoad4In))
 			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W |' % (tubeCondLoad_MT, 0, tubeCondLoad_VCS2))
-			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoad, VCS1_load, VCS2_load))
+			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoadprint, VCS1_load, VCS2_load))
 			
 			return T_VCS1 , T_VCS2, mdot
 		# Cutting back on our precision
