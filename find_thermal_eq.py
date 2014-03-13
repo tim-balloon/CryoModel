@@ -68,6 +68,8 @@ def find_equilibrium(args):
 	# (cf. radmodel.main())
 	if args.mylarWindow:
 	        radmodel_params = models['ar_mylarwindow_nonylon']
+        elif args.shaderWindow:
+                radmodel_params = models['ar_nonylon_windowshader']
 	else:
 	        radmodel_params = models['ar_nonylon']
 	M = RadiativeModel()
@@ -225,6 +227,7 @@ if __name__ == '__main__':
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 0.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
 	parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
+	parser.add_argument('-shaderWindow', dest = 'shaderWindow', action = 'store_true', help='Use a PE window with a 300K shader.')
 	parser.add_argument('-keller', dest = 'keller', action = 'store_true', help='Use the keller MLI model')
 
 	args = parser.parse_args()
