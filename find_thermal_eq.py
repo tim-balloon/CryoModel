@@ -63,14 +63,14 @@ def find_equilibrium(args):
 	#window_VCS1 = insNum*1.0 # arbitrary nylon hot potato #
 		
 	
-        # filter model
-        # TODO: add options for different loads at the aperture
-        # (cf. radmodel.main())
-        if args.mylarWindow:
-                radmodel_params = models['ar_mylarwindow_nonylon']
-        else:
-                radmodel_params = models['ar_nonylon']
-        M = RadiativeModel()
+	# filter model
+	# TODO: add options for different loads at the aperture
+	# (cf. radmodel.main())
+	if args.mylarWindow:
+	        radmodel_params = models['ar_mylarwindow_nonylon']
+	else:
+	        radmodel_params = models['ar_nonylon']
+	M = RadiativeModel()
         
 	#Counter and maximum number of iterations
 	n = 1
@@ -99,19 +99,30 @@ def find_equilibrium(args):
 		
 		#Radiative loads and MLI conductivity estimates
 		#TODO-update with better MLI model
-		mli_load_VCS1, mli_load_VCS2 = mli_cond(T_VCS1, T_VCS2, T_Shell, config = config)
+		if args.keller:
+			
+			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = \
+				mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
+					p_ins=1e-2, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config)
+			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
+					
+		else:			
+			mli_load_VCS1, mli_load_VCS2 = mli_cond(T_VCS1, T_VCS2, T_Shell, config = config)
 		
-		Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = rad_load(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell,
-			e_Al=0.15, alpha=0.15, beta=4.0e-3, config = config)
-		Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
-		
-                window_MT, window_VCS1, window_VCS2 = \
-                        filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
-                                    insNum, **radmodel_params)
-                print('VCS2 window power: %s' % window_VCS2)
-                print('VCS1 window power: %s' % window_VCS1)
-                print('MT window power: %s' % window_MT)
-                
+			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = rad_load(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell,
+				e_Al=0.15, alpha=0.15, beta=4.0e-3, config = config)
+			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
+			
+			Rad_VCS1 += mli_load_VCS1  #is this appropriate?  some of this goes to cooling, should all of it?
+			Rad_VCS2 += mli_load_VCS2
+			
+		window_MT, window_VCS1, window_VCS2 = \
+		         filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
+		                     insNum, **radmodel_params)
+		print('VCS2 window power: %s' % window_VCS2)
+		print('VCS1 window power: %s' % window_VCS1)
+		print('MT window power: %s' % window_MT)
+ 
 		##CONDUCTION through flexures and stainless tubes##
 		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out, 
 		    flexCondLoad1, flexCondLoad2, flexCondLoad3In, 
@@ -147,19 +158,19 @@ def find_equilibrium(args):
 			
 		icsCryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
 				
-		VCS1 = Rad_VCS1 + mli_load_VCS1 + window_VCS1 \
+		VCS1 = Rad_VCS1 + window_VCS1 \
 				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - icsCryocooler 
 		
-		VCS1_load = Rad_VCS1 + mli_load_VCS1 + window_VCS1
+		VCS1_load = Rad_VCS1 + window_VCS1
 		
 		VCS1 +=  (flexCondLoad_VCS1 - flexCondLoad_MT) 
 		VCS1_load += flexCondLoad_VCS1
 		
 		ocsCryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
 		
-		VCS2 = Rad_VCS2 + mli_load_VCS2 + window_VCS2 \
+		VCS2 = Rad_VCS2  + window_VCS2 \
 				-Rad_VCS1 - gasCoolingVCS2 - ocsCryocooler
-		VCS2_load = Rad_VCS2 + mli_load_VCS2 + window_VCS2 
+		VCS2_load = Rad_VCS2  + window_VCS2 
 		
 		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
 		VCS2_load += flexCondLoad_VCS2 + tubeCondLoad_VCS2
@@ -187,7 +198,7 @@ def find_equilibrium(args):
 			print('          |    MT   |   ICS   |   OCS   |')
 			print('Aperture  | %1.2e W | %1.2e W | %1.2e W |' % (window_MT, window_VCS1, window_VCS2))
 			print('Radiative | %1.2e W | %1.2e W | %1.2e W |' % (Rad_MT, Rad_VCS1, Rad_VCS2))
-			print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
+			#print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
 			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' % (flexCondLoad_MT, flexCondLoad_VCS1, flexCondLoad_VCS2))
 			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W |' % (tubeCondLoad_MT, 0, tubeCondLoad_VCS2))
 			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoad, VCS1_load, VCS2_load))
@@ -212,7 +223,8 @@ if __name__ == '__main__':
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 1.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
-        parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
+	parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
+	parser.add_argument('-keller', dest = 'keller', action = 'store_true', help='Use the keller MLI model')
 
 	args = parser.parse_args()
 	

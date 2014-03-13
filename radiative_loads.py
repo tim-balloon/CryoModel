@@ -11,6 +11,37 @@ import sys
 import os
 import areas
 import numpy as np
+import mli_keller
+
+#Stefan-Boltzmann constant
+sigma = 5.6704E-12   #[J/s*cm^2*K^4] 
+
+
+def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
+	p_ins=1e-3, e_Al=0.15, alpha=0.15, beta=4.0e-3, config='theo'):
+	'''returns the radiative loads INCLUDING all conductive and gas effects in MLI
+	MLI is only used on VCS1 and VCS2 as gas loading would make MT MLI ineffective'''
+	
+	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config)
+	#Thickness of mli sheets
+	t1 = 2.00 #[cm]
+	t2 = 3.81 #[cm]
+	
+	#number of layers
+	N1 = 16
+	N2 = 52
+	N1_s = N1 / t1
+	N2_s = N2 / t2
+	
+	Rad_VCS1 = mli_keller.P_tot(p_ins, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
+	Rad_VCS2 = mli_keller.P_tot(p_ins, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
+	Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
+	RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
+	
+	Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
+		MLIEmiss(T_MT,T_VCS1,0,alpha,beta), e_Al*0.9))))
+	
+	return Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2
 
 def mli_cond(T_VCS1,T_VCS2,T_Shell,Lambda = 1.0e-6, config='theo'):
 	
@@ -62,10 +93,7 @@ def rad_load(T_SFT, T_MT, T_VCS1,T_VCS2,T_Shell, e_Al=0.15, alpha=0.15, beta=4.0
 	N2 = 0
 	N3 = 16
 	N4 = 52
-	
-	#Stefan-Boltzmann constant
-	sigma = 5.6704E-12   #[J/s*cm^2*K^4] 
-	
+		
 	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config)
 	
 	#Radiative heat fluxess
