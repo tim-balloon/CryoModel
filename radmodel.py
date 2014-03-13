@@ -1161,8 +1161,8 @@ class RadiativeModel(object):
         # self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
         
         # temperature
-        self.params['twin'] = kwargs.pop('window_temp',
-                                         kwargs.pop('twin',273.0))
+        self.params['twindow'] = kwargs.pop('window_temp',
+                                            kwargs.pop('twin',273.0))
         # emissivity index
         self.params['window_beta'] = kwargs.pop('window_beta',2)
         
@@ -1430,18 +1430,6 @@ class RadiativeModel(object):
                                       **opts)
             surfaces.append(Ratmos)
         
-        # window
-        if self.params['window']:
-            Fwin = self.filters[filter_stack['window'][0]]
-            window_emis = Fwin.get_emis()
-            window_trans = 1 - window_emis
-            dt = filter_offsets.get('window',{}).get(Fwin.name,0)
-            bb_win = blackbody(freq, self.params['twin']+dt)
-            Rwin = RadiativeSurface('Window', trans=window_trans,
-                                    abs=window_emis, bb=bb_win,
-                                    **opts)
-            surfaces.append(Rwin)
-        
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage,outer_ref_load=False):
             T = self.params['t%s'%stage]
@@ -1461,7 +1449,13 @@ class RadiativeModel(object):
             return RadiativeStack(stage.upper(), stack, 
                                   outer_ref_load=outer_ref_load, **opts)
         
-        Rvcs2 = make_stack('vcs2', outer_ref_load=True)
+        # window
+        if self.params['window']:
+            Rwin = make_stack('window')
+            surfaces.append(Rwin)
+        
+        Rvcs2 = make_stack('vcs2', outer_ref_load=True if 
+                           len(filter_stack['window'])==1 else False)
         Rvcs1 = make_stack('vcs1')
         R4k = make_stack('4k')
         R2k = make_stack('2k')
@@ -1681,6 +1675,15 @@ models = {
         },
     'ar_nonylon': {
         'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_nonylon_windowshader': {
+        'filter_stack': {'window': ['poly_window_arc150','c15','c30'],
                          'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm'],
                          '4k':['10icm_arc150','nylon_arc150'],
