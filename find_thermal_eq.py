@@ -48,14 +48,12 @@ def find_equilibrium(args):
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	
 	capLoad = 0.008 #~50mW / 6 for capillary box
-	window_MT =  insNum*0.01 #10 mW estimate from current radmodel code 
-	window_VCS1 = insNum*0.030 # 0.030W estimate from current radmodel code
+	window_MT =  insNum*0.004 #4 mW estimate from current radmodel code with nylon as upper bound
+	window_VCS1 = insNum*0.030 # 2x current radmodel code estimate 		
+	window_VCS2 =  insNum*1.2 # current radmodel code estimate
 	
-	#window_MT =  insNum*0.08 #80 mW estimate from current radmodel code 
-	#window_VCS1 = insNum*1.0 # arbitrary nylon hot potato #
-		
-	window_VCS2 =  insNum*1.5 # kind of made up
-	
+	#window_VCS1 = insNum*0.13 # 2x current radmodel code estimate 		
+	#window_VCS2 =  insNum*7 # current radmodel code estimate
 	
 	#Counter and maximum number of iterations
 	n = 1
@@ -122,24 +120,20 @@ def find_equilibrium(args):
 		lowlift = np.array([0.124, 0.223, 0.3])
 		p_low = np.polyfit(lowT, lowlift, 1) #linear fit to lower temp data from AKARI
 			
-		cryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
-		print('VCS1 cryocooler power: %s' % cryocooler)
-		print('VCS1 gas cooling power: %s' % gasCoolingVCS1)
+		icsCryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
 				
 		VCS1 = Rad_VCS1 + mli_load_VCS1 + window_VCS1 \
-				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - cryocooler 
+				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - icsCryocooler 
 		
 		VCS1_load = Rad_VCS1 + mli_load_VCS1 + window_VCS1
 		
 		VCS1 +=  (flexCondLoad_VCS1 - flexCondLoad_MT) 
 		VCS1_load += flexCondLoad_VCS1
 		
-		cryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
-		print('VCS2 cryocooler power: %s' % cryocooler)
-		print('VCS2 gas cooling power: %s' % gasCoolingVCS2)
+		ocsCryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
 		
 		VCS2 = Rad_VCS2 + mli_load_VCS2 + window_VCS2 \
-				-Rad_VCS1 - gasCoolingVCS2 - cryocooler
+				-Rad_VCS1 - gasCoolingVCS2 - ocsCryocooler
 		VCS2_load = Rad_VCS2 + mli_load_VCS2 + window_VCS2 
 		
 		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
@@ -150,20 +144,28 @@ def find_equilibrium(args):
 		#print VCS1, VCS2, mdot
 		#Check if loads ~ zero
 		if (abs(VCS1) < eps and abs(VCS2) < eps):
-			print(VCS1)
-			print(VCS2)
-			print('MT total load: %s' % MTLoad)
-			print('MT radiative load: %s' % Rad_MT)
-			print('MT flexure load: %s' % flexCondLoad_MT)
-			print('MT tube load: %s' % tubeCondLoad_MT)
-			print('MT window load: %s' % window_MT)
+		
+			print('ICS cryocooler power: %s' % icsCryocooler)
+			print('ICS gas cooling power: %s' % gasCoolingVCS1)
 			
-			print('VCS1_load: %s' %VCS1_load)
-			print('VCS1_rad: %s' % Rad_VCS1)
-			print('VCS1_mli: %s' % mli_load_VCS1)
-			print('VCS2_load: %s' %VCS2_load)
+			print('OCS cryocooler power: %s' % ocsCryocooler)
+			print('OCS gas cooling power: %s' % gasCoolingVCS2)
+						
 			print('mdot (g/s): %s, Holdtime (days): %s' % (mdot, holdtime(mdot, numLiters = numLiters)))
-			print('VCS1 Temp: %s, VCS2 Temp: %s' % (T_VCS1 , T_VCS2))
+			
+			#print summary
+			print(' Stage |Temperature |')
+			print(' OCS   | %1.2f K |' % T_VCS2)
+			print(' ICS   | %1.2f K |' % T_VCS1)
+			
+			print('Loads')
+			print('          |    MT   |   ICS   |   OCS   |')
+			print('Aperture  | %1.2e W | %1.2e W | %1.2e W |' % (window_MT, window_VCS1, window_VCS2))
+			print('Radiative | %1.2e W | %1.2e W | %1.2e W |' % (Rad_MT, Rad_VCS1, Rad_VCS2))
+			print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
+			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' % (flexCondLoad_MT, flexCondLoad_VCS1, flexCondLoad_VCS2))
+			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W |' % (tubeCondLoad_MT, 0, tubeCondLoad_VCS2))
+			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoad, VCS1_load, VCS2_load))
 			
 			return T_VCS1 , T_VCS2, mdot
 		# Cutting back on our precision
