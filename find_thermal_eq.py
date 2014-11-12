@@ -39,6 +39,14 @@ def find_equilibrium(args):
 		insNum = 1.0
 		config = 'ULDB2'
 		numLiters = 120.0		
+	elif args.theo2:
+		config = 'theo2'
+		insNum = 6
+		numLiters = 1000.0
+	elif args.theo1:
+		config = 'theo1'
+		insNum = 6
+		numLiters = 1000.0
 	else:
 		config = 'theo'
 		insNum = 6
@@ -82,9 +90,9 @@ def find_equilibrium(args):
 	eps = 0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
-	#gain = 0.025
+	gain = 0.025
 	#gain = 0.05
-	gain = 0.1
+	#gain = 0.1
 	    
 	while n <=maxIter:
 		if (abs(VCS1) > abs(VCS2)):
@@ -144,13 +152,16 @@ def find_equilibrium(args):
 		gasCoolingVCS1 = e_23*mdot*CpInt(T_MT, T_VCS1, T_He, Cp_He)
 		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
 		l = 21. #Helium heat of evaporization [J/g]
-	   		
+	   	
+		MTexcess = 0.0*0.5 #excess load in watts?	
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
+		MT += MTexcess
 		
 		MTLoad = capLoad + Rad_MT + window_MT \
-				+ flexCondLoad2in + tubeCondLoad_MT
+				+ flexCondLoad2in + tubeCondLoad_MT \
+				+ MTexcess
 				
 		SFTLoad = Rad_SFT
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
@@ -165,7 +176,8 @@ def find_equilibrium(args):
 		icsCryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
 				
 		VCS1 = Rad_VCS1 + window_VCS1 \
-				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - icsCryocooler 
+				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - icsCryocooler \
+				-MTexcess
 		
 		VCS1_load = Rad_VCS1 + window_VCS1
 		
@@ -228,6 +240,8 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Thermal model')
 	parser.add_argument('-ULDB', dest='ULDB', action='store_true', help='Run ULDB model instead of Theo?')
 	parser.add_argument('-ULDB2', dest='ULDB2', action='store_true', help='Run ULDB *2* model instead of Theo?')
+	parser.add_argument('-theo2', dest='theo2', action='store_true', help='Run theo model with large flexure intercept only to VCS2')
+	parser.add_argument('-theo1', dest='theo1', action='store_true', help='Run theo model with large flexure intercept only to VCS1')
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 0.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')

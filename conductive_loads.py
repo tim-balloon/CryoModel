@@ -33,6 +33,19 @@ k_SS = np.append(k_SS_low, k_SS_high)
 
 T_G10, k_G10 = np.loadtxt('thermalProp/g10_cv_combined.txt', unpack = True)
 
+def llg10warp(t): return -2.64827 + 8.80228*t - 24.8998*t**2 + 41.1625*t**3 - 39.8754*t**4 + 23.1778*t**5 - 7.95635*t**6 + 1.48806*t**7 - .11701*t**8
+
+def llg10norm(t): return -4.1236 + 13.788*t - 26.068*t**2 + 26.272*t**3 - 14.663*t**4 + 4.4954*t**5 - 0.6905*t**6 + 0.0397*t**7
+
+def mfg_k(f):
+	def g(t):
+		return 10.0**f(np.log10(t))
+	return g
+
+g10warpk = mfg_k(llg10warp)
+g10normk = mfg_k(llg10norm)
+k_G10warp = g10warpk(T_G10)
+
 def TestLFlexH(T_min, T_max, L, T_G10, k_G10):
 	'''Conductivity through large test cryostat flexures cross sectional area
 	of length L'''
@@ -274,10 +287,11 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		L_SFTFLex = 0.03937
 
 		# Calculating heat loads for each junction
-		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10)
+		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10) #MT -> VCS1
 		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)
-		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
-		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
+		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10) #VCS1->VCS2
+		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10) #VCS2->VV
 		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
 		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
 		if (T1 != T2):
@@ -294,6 +308,76 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad4in = 6*(SFlexToVCS2+LFlexToVCS2)
 		flexCondLoad4out = -6*LFlexToVCS1
 
+	elif config == 'theo1':
+		#vcs 1 intercept only
+		# Relevant lengths in meters
+		length = -.02
+		L_MTLargeFlex = 0.07874 + length  #full length to shell, no VCS intercepts
+		L_VCS1LargeFlex = 0.0203 - length
+		L_VCS2LargeFlex = 1e-4
+		
+		L_MTSmallFlex = 0.0330  #1.3 inches
+		L_VCS2SmallFlex = 0.0330 # 1.3 inches
+		L_MTAxFlex = 0.09015
+		L_SFTFLex = 0.03937
+
+		# Calculating heat loads for each junction
+		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10)
+		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)   
+		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
+		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
+		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
+		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
+		if (T1 != T2):
+			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
+		else:
+			SFTFlexToMT = 0
+
+		flexCondLoad1 = 7*SFTFlexToMT+insLoading*insNum
+		flexCondLoad2in = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1
+		flexCondLoad2out = -7*SFTFlexToMT \
+			-(SFTVent12+SFTFill12)
+		flexCondLoad3in = 6*(LFlexToVCS1)
+		flexCondLoad3out = -6*(LFlexToMT+ SFlexToMT)-3*MTAxFlextoVCS1
+		flexCondLoad4in = 6*(SFlexToVCS2)# + LFlexToVCS2)
+		flexCondLoad4out = -6*(LFlexToVCS1)
+
+	elif config == 'theo2':
+		#VCS2 intercept only
+		# Relevant lengths in meters
+		length = -.015 
+		L_MTLargeFlex = 0.07874 + length  #full length to shell, no VCS intercepts
+		L_VCS1LargeFlex = 1e-4
+		L_VCS2LargeFlex = 0.0203 - length
+		
+		L_MTSmallFlex = 0.0330  #1.3 inches
+		L_VCS2SmallFlex = 0.0330 # 1.3 inches
+		L_MTAxFlex = 0.09015
+		L_SFTFLex = 0.03937
+
+		# Calculating heat loads for each junction
+		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		LFlexToMT = LFlexH(T2,T4,L_MTLargeFlex,T_G10,k_G10)
+		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)   
+		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
+		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
+		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
+		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
+		if (T1 != T2):
+			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
+		else:
+			SFTFlexToMT = 0
+
+		flexCondLoad1 = 7*SFTFlexToMT+insLoading*insNum
+		flexCondLoad2in = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1
+		flexCondLoad2out = -7*SFTFlexToMT \
+			-(SFTVent12+SFTFill12)
+		flexCondLoad3in = 0.0 #6*(LFlexToVCS1)
+		flexCondLoad3out = -6*(SFlexToMT)-3*MTAxFlextoVCS1
+		flexCondLoad4in = 6*(SFlexToVCS2 + LFlexToVCS2)
+		flexCondLoad4out = -6*(LFlexToMT)
+
 	elif config == 'ULDB':
 		
 		# Relevant lengths in meters
@@ -304,9 +388,9 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 				
 		# Calculating heat loads for each junction
 		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
-		FlexToMT = TestLFlexH(T2,T4,L_VCS2toMTFlex,T_G10,k_G10)
-		FlexToVCS1 = TestSFlexH(T3,T4,L_VCS2toVCS1,T_G10,k_G10)
-		FlexToVCS2 = TestLFlexH(T4,T5,L_VCS2Flex,T_G10,k_G10)
+		FlexToMT = TestLFlexH(T2,T4,L_VCS2toMTFlex,T_G10,k_G10) #MT -> VCS2
+		FlexToVCS1 = TestSFlexH(T3,T4,L_VCS2toVCS1,T_G10,k_G10) #VCS1 -> VCS2
+		FlexToVCS2 = TestLFlexH(T4,T5,L_VCS2Flex,T_G10,k_G10) #VCS2->VV
 		
 		if (T1 != T2):
 			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)

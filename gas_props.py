@@ -38,6 +38,13 @@ def CpInt(T_min, T_max, T_gas, Cp_gas):
 	CpInt = integrate.trapz(np.interp(T, T_gas, Cp_gas), T)
 	return CpInt
 
+def helium_lambda(T):
+	'''helium conductivity from pg 16 of "handbook of thermal conductivity of liquids and gases"
+	functional fit to tabulated data across range from 2.2 to 6000K at 0.1MPa = 1atm
+	returns conductivity in Watts/(m*K)'''
+	
+	return (2.81*T**0.7 - 9.5*T**(-1) + 3 + 3.1*10**(-3)*T+2.9*10**(-7)*T**2)*10**(-3) # W/(m*K)
+	
 def helium_cv_ideal(T):
 	# helium_cv - conduction of helium at 1 atm based on the following
 	# equation for the conduction of ideal gas: 
