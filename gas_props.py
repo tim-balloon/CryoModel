@@ -24,6 +24,16 @@ def mdot2SLPM(mdot):
 	SLPM = 60 * ( mdot / HeDensATStp );
 	return SLPM
 
+def SLPM2mdot(SLPM):
+	#--------------------------------------------------------------------------
+	#Converting from SLPM to kg/s
+	#--------------------------------------------------------------------------
+	HeDensAtBP = 124.98; #kg/m^3
+	HeDensATStp = 0.1786; #g/L
+	
+	mdot = HeDensATStp*SLPM / 60.
+	return mdot
+	
 def holdtime(mdot, numLiters = 1000): 
 	He_density = 125 #[g/l]
 	#Seconds in a day

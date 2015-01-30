@@ -75,9 +75,9 @@ def TestSFlexH(T_min, T_max, L, T_G10, k_G10):
 def SFlexH(T_min, T_max, L, T_G10, k_G10):
 	'''Conductivity through small Theo flexures cross sectional area
 	of length L'''
-	t = 0.00076;
-	w = 0.01429;
-	A = t*w;
+	t = 0.00076
+	w = 0.029# 0.01429 why did jon have half??
+	A = t*w
 	if T_min == T_max:
 		return 0
 	else:
@@ -88,9 +88,9 @@ def SFlexH(T_min, T_max, L, T_G10, k_G10):
 def LFlexH(T_min, T_max, L, T_G10, k_G10):
 	'''Conductivity through large Theo flexures cross sectional area
 	of length L'''
-	t = 0.00159;    #[m]
-	w = 0.06513;    #[m]
-	A = t*w;
+	t = 0.00159    #[m]
+	w = 0.13 #0.06513;    #[m]
+	A = t*w
 	if T_min == T_max:
 		return 0
 	else:
@@ -120,10 +120,11 @@ def SFTFlex(T_min, T_max, L, T_G10, k_G10):
 		T = np.arange(T_min, T_max, dT/2.)
 		return (A/L) * integrate.trapz(np.interp(T, T_G10, k_G10), T)
 
+SSTthick = 2.0*0.000254   #[m]
+
 def SSMTTube(T_min, T_max, L, T_SS, k_SS):
 	OD = 0.01905    #[m]
-	t = 0.000254    #[m]
-
+	t = SSTthick    #[m]
 	rout = OD/2
 	rin = rout-t
 	A = np.pi*(rout**2-rin**2) #[m^2]
@@ -136,8 +137,7 @@ def SSMTTube(T_min, T_max, L, T_SS, k_SS):
 
 def SSSFTTube(T_min, T_max, L, T_SS, k_SS):
 	OD = 0.0127    #[m]
-	t = 0.000254    #[m]
-	
+	t = SSTthick #0.000254    #[m]
 	rout = OD/2
 	rin = rout-t
 	A = np.pi*(rout**2-rin**2) #[m^2]
@@ -150,7 +150,7 @@ def SSSFTTube(T_min, T_max, L, T_SS, k_SS):
 
 def SSMTTubeGas(T_min, T_max, L):
 	OD = 0.01905    #[m]
-	t = 0.000254    #[m]
+	t = SSTthick #0.000254    #[m]
 	ID = OD-2*t
 	A = np.pi*(ID)**2/4       #[m^2]
 
@@ -162,7 +162,7 @@ def SSMTTubeGas(T_min, T_max, L):
 
 def SSSFTTubeGas(T_min, T_max, L):
 	OD = 0.0127    #[m]
-	t = 0.000254   #[m]
+	t = SSTthick #0.000254    #[m]
 	ID = OD-2*t
 	A = np.pi*(ID)**2/4       #[m^2]
 
@@ -289,10 +289,10 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		# Calculating heat loads for each junction
 		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
 		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10) #MT -> VCS1
-		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)
+		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10) #MT-VCS1
 		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10) #VCS1->VCS2
 		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10) #VCS2->VV
-		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
+		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10) #VCS2-VV
 		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
 		if (T1 != T2):
 			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
@@ -311,7 +311,7 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 	elif config == 'theo1':
 		#vcs 1 intercept only
 		# Relevant lengths in meters
-		length = -.02
+		length = -.03
 		L_MTLargeFlex = 0.07874 + length  #full length to shell, no VCS intercepts
 		L_VCS1LargeFlex = 0.0203 - length
 		L_VCS2LargeFlex = 1e-4
@@ -325,8 +325,8 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
 		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10)
 		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)   
-		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
-		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
+		LFlexToVCS1 = LFlexH(T3,T5,L_VCS1LargeFlex,T_G10,k_G10)
+		#LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
 		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
 		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
 		if (T1 != T2):
@@ -340,15 +340,17 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 			-(SFTVent12+SFTFill12)
 		flexCondLoad3in = 6*(LFlexToVCS1)
 		flexCondLoad3out = -6*(LFlexToMT+ SFlexToMT)-3*MTAxFlextoVCS1
-		flexCondLoad4in = 6*(SFlexToVCS2)# + LFlexToVCS2)
+		flexCondLoad4in = 6*(SFlexToVCS2)
 		flexCondLoad4out = -6*(LFlexToVCS1)
 
 	elif config == 'theo2':
 		#VCS2 intercept only
 		# Relevant lengths in meters
-		length = -.015 
+		length = .00 
 		L_MTLargeFlex = 0.07874 + length  #full length to shell, no VCS intercepts
+		#L_MTLargeFlex = 0.11 #4.5 inches, full length from MT -> VV
 		L_VCS1LargeFlex = 1e-4
+		#L_VCS2LargeFlex = 1e-4
 		L_VCS2LargeFlex = 0.0203 - length
 		
 		L_MTSmallFlex = 0.0330  #1.3 inches
@@ -358,9 +360,10 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 
 		# Calculating heat loads for each junction
 		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		#LFlexToMT = LFlexH(T2,T5,L_MTLargeFlex,T_G10,k_G10)
 		LFlexToMT = LFlexH(T2,T4,L_MTLargeFlex,T_G10,k_G10)
 		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)   
-		LFlexToVCS1 = LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
+		LFlexToVCS1 = 0.0*LFlexH(T3,T4,L_VCS1LargeFlex,T_G10,k_G10)
 		LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
 		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
 		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
@@ -373,10 +376,45 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad2in = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1
 		flexCondLoad2out = -7*SFTFlexToMT \
 			-(SFTVent12+SFTFill12)
-		flexCondLoad3in = 0.0 #6*(LFlexToVCS1)
+		flexCondLoad3in = 0.0*(LFlexToVCS1)
 		flexCondLoad3out = -6*(SFlexToMT)-3*MTAxFlextoVCS1
 		flexCondLoad4in = 6*(SFlexToVCS2 + LFlexToVCS2)
 		flexCondLoad4out = -6*(LFlexToMT)
+
+	elif config == 'theo_alt1':
+		#use as-built dimensions, but disconnect VCS2 flexure
+		
+		# Relevant lengths in meters
+		L_MTLargeFlex = 0.0127  #0.5 inches MT -> VCS1
+		L_VCS1LargeFlex = 0.0508  #2 inches VCS1 -> VCS2
+		L_VCS2LargeFlex = 0.0203  # 0.8 inches
+		L_VCS1LargeFlex += L_VCS2LargeFlex #add VCS2 length to VCS1 flexure, VCS1-> VV
+		L_MTSmallFlex = 0.0330  #1.3 inches
+		L_VCS2SmallFlex = 0.0330 # 1.3 inches
+		L_MTAxFlex = 0.09015
+		L_SFTFLex = 0.03937
+
+		# Calculating heat loads for each junction
+		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10) #MT -> VCS1
+		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10) #MT-VCS1
+		LFlexToVCS1 = LFlexH(T3,T5,L_VCS1LargeFlex,T_G10,k_G10) #VCS1->VCS2
+		#LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10) #VCS2->VV
+		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10) #VCS2-VV
+		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
+		if (T1 != T2):
+			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
+		else:
+			SFTFlexToMT = 0
+
+		flexCondLoad1 = 7*SFTFlexToMT+insLoading*insNum
+		flexCondLoad2in = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1
+		flexCondLoad2out = -7*SFTFlexToMT \
+			-(SFTVent12+SFTFill12)
+		flexCondLoad3in = 6*(LFlexToVCS1) #goes to VV
+		flexCondLoad3out = -6*(LFlexToMT+SFlexToMT)-3*MTAxFlextoVCS1
+		flexCondLoad4in = 6*(SFlexToVCS2)
+		flexCondLoad4out = 0.0
 
 	elif config == 'ULDB':
 		

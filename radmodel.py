@@ -1556,9 +1556,10 @@ def filter_load(model_obj, t2k, t4k, tvcs1, tvcs2, twin, n_inserts, **params):
     if np.isnan(window_VCS1):
         raise ValueError,'NaN!'
     window_MT = surfs['4k'].iload_int * n_inserts
+    inband = surfs['det'].iload_int
     if np.isnan(window_MT):
         raise ValueError,'NaN!'
-    return window_MT, window_VCS1, window_VCS2
+    return inband, window_MT, window_VCS1, window_VCS2
 
 def model150to90(model):
     fstack = model['filter_stack'].copy()

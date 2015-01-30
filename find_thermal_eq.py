@@ -21,7 +21,7 @@ def find_equilibrium(args):
 	VCS1 = 1
 	VCS2 = 2
 	#setting initial temperatures and flows -20C = 253.15
-	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.2, 10., 100., 300.)
+	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.2, 10., 100., 250.)
 	mdot = 0.030
 	
 	#Cooling efficiencies
@@ -29,7 +29,8 @@ def find_equilibrium(args):
 	e_34 = 0.9  #cooling efficiency between VCS1 and VCS2
   	
 	sftPumped = True
-	sftEmpty = False
+	#sftEmpty = False
+	sftEmpty = args.sftEmpty
 	
 	if args.ULDB:
 		insNum = 1.0
@@ -47,6 +48,10 @@ def find_equilibrium(args):
 		config = 'theo1'
 		insNum = 6
 		numLiters = 1000.0
+	elif args.theo_alt1:
+		config = 'theo_alt1'
+		insNum = 6
+		numLiters = 1000.0
 	else:
 		config = 'theo'
 		insNum = 6
@@ -57,20 +62,7 @@ def find_equilibrium(args):
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	
 	capLoad = 0.008 #~50mW / 6 for capillary box
-	
-	window_MT =  insNum*0.004 #4 mW estimate from current radmodel code with nylon as upper bound
-	window_VCS1 = insNum*0.030 # 2x current radmodel code estimate 		
-	window_VCS2 =  insNum*1.2 # current radmodel code estimate
-	
-	#window_VCS1 = insNum*0.13 # 2x current radmodel code estimate 		
-	#window_VCS2 =  insNum*7 # current radmodel code estimate
-	#window_MT =  insNum*0.01 #10 mW estimate from current radmodel code 
-	#window_VCS1 = insNum*0.030 # 0.030W estimate from current radmodel code
-        
-	#window_MT =  insNum*0.08 #80 mW estimate from current radmodel code 
-	#window_VCS1 = insNum*1.0 # arbitrary nylon hot potato #
-		
-	
+				
 	# filter model
 	# TODO: add options for different loads at the aperture
 	# (cf. radmodel.main())
@@ -90,8 +82,8 @@ def find_equilibrium(args):
 	eps = 0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
-	gain = 0.025
-	#gain = 0.05
+	#gain = 0.025
+	gain = 0.05
 	#gain = 0.1
 	    
 	while n <=maxIter:
@@ -109,27 +101,31 @@ def find_equilibrium(args):
 		#update loads
 		
 		#Radiative loads and MLI conductivity estimates
-		#TODO-update with better MLI model
+		if args.windowsOpen:	
+			inband, window_MT, window_VCS1, window_VCS2 = \
+				filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
+				insNum, **radmodel_params)
+		else:
+			window_MT, window_VCS1, window_VCS2 = np.zeros(3)
+			insNum = 0.0
+
 		if args.keller:
 			
 			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = \
 				mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
-					p_ins=1e-4, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config)
+					p_ins=1e-4, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config, insNum = insNum)
 			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
 					
 		else:			
-			mli_load_VCS1, mli_load_VCS2 = mli_cond(T_VCS1, T_VCS2, T_Shell, config = config)
+			mli_load_VCS1, mli_load_VCS2 = mli_cond(T_VCS1, T_VCS2, T_Shell, config = config, insNum = insNum)
 		
 			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = rad_load(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell,
-				e_Al=0.15, alpha=0.15, beta=4.0e-3, config = config)
+				e_Al=0.15, alpha=0.15, beta=4.0e-3, config = config, insNum = insNum)
 			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
 			
 			Rad_VCS1 += mli_load_VCS1  #is this appropriate?  some of this goes to cooling, should all of it?
 			Rad_VCS2 += mli_load_VCS2
-			
-		window_MT, window_VCS1, window_VCS2 = \
-		         filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
-		                     insNum, **radmodel_params)
+		
 		#print('TVCS2: %s, VCS2 window power: %s' % (T_VCS2, window_VCS2))
 		#print('TVCS1: %s, VCS1 window power: %s' % (T_VCS1, window_VCS1))
 		#print('MT window power: %s' % window_MT)
@@ -153,7 +149,7 @@ def find_equilibrium(args):
 		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
 		l = 21. #Helium heat of evaporization [J/g]
 	   	
-		MTexcess = 0.0*0.5 #excess load in watts?	
+		MTexcess = args.mtExcess #excess load in watts?	
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
@@ -206,23 +202,24 @@ def find_equilibrium(args):
 			print('OCS gas cooling power: %s' % gasCoolingVCS2)
 						
 			print('mdot (g/s): %s, Holdtime (days): %s' % (mdot, holdtime(mdot, numLiters = numLiters)))
-			
+			print('SLPM: %s' % (mdot2SLPM(mdot)))
 			#print summary
 			print(' Stage |Temperature |')
 			print(' OCS   | %1.2f K |' % T_VCS2)
 			print(' ICS   | %1.2f K |' % T_VCS1)
-			
+			print('--------')
 			print('Loads')
-			print('          |    MT   |   ICS   |   OCS   |')
-			print('Aperture  | %1.2e W | %1.2e W | %1.2e W |' % (window_MT, window_VCS1, window_VCS2))
-			print('Radiative | %1.2e W | %1.2e W | %1.2e W |' % (Rad_MT, Rad_VCS1, Rad_VCS2))
+			print('          |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('Aperture  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (0.0, window_MT, window_VCS1, window_VCS2))
+			print('Radiative | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2))
 			#print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
-			print('Flexures  | %1.2e W | %1.2e W | %1.2e W |' \
-				% (cfact*flexCondLoad2in, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
-			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W |' \
-				% (tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
-			print('Total     | %1.2e W | %1.2e W | %1.2e W |' % (MTLoad, VCS1_load, VCS2_load))
-			
+			print('Flexures  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+				% (cfact*flexCondLoad_SFT, cfact*flexCondLoad2in, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
+			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+				% (tubeCondLoad_SFT, tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
+			print('--------')
+			print('Total     | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
+			print('In-band detector loading: %s' % uprint(inband))
 			return T_VCS1 , T_VCS2, mdot
 		# Cutting back on our precision
 		if ( n == np.floor(maxIter/2) ):
@@ -241,6 +238,7 @@ if __name__ == '__main__':
 	parser.add_argument('-ULDB', dest='ULDB', action='store_true', help='Run ULDB model instead of Theo?')
 	parser.add_argument('-ULDB2', dest='ULDB2', action='store_true', help='Run ULDB *2* model instead of Theo?')
 	parser.add_argument('-theo2', dest='theo2', action='store_true', help='Run theo model with large flexure intercept only to VCS2')
+	parser.add_argument('-theo_alt1', dest='theo_alt1', action='store_true', help='Run theo model with as built dims, but connected only to VCS1 intercept')
 	parser.add_argument('-theo1', dest='theo1', action='store_true', help='Run theo model with large flexure intercept only to VCS1')
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 0.0, help='Number of OCS coolers')
@@ -248,6 +246,9 @@ if __name__ == '__main__':
 	parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
 	parser.add_argument('-shaderWindow', dest = 'shaderWindow', action = 'store_true', help='Use a PE window with a 300K shader.')
 	parser.add_argument('-keller', dest = 'keller', action = 'store_true', help='Use the keller MLI model')
+	parser.add_argument('-sftEmpty', dest = 'sftEmpty', action = 'store_true', help='Model with the SFT empty')
+	parser.add_argument('-noInserts', dest = 'windowsOpen', action = 'store_false', help='Run with no inserts installed (no filters)')
+	parser.add_argument('-mtExcess', dest = 'mtExcess', action = 'store', type = float, default= 0.0, help='Excess load on MT, in Watts')
 
 	args = parser.parse_args()
 	

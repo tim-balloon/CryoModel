@@ -10,9 +10,9 @@ import sys
 import os
 import numpy as np
 
-def load_areas(config='theo'):
+def load_areas(config='theo', insNum = 6.0):
 	
-	if config =='theo' or config == 'theo2' or config == 'theo1':
+	if config =='theo' or config == 'theo2' or config == 'theo1' or config == 'theo_alt1':
 		
 		#----------------------------------------------------------------------
 		# This is a WRONG way of calculating the area of the MT.
@@ -32,6 +32,8 @@ def load_areas(config='theo'):
 		MT_cyl = 2*np.pi*R_MT*h_MT     #[cm**2]
 		MT_Area = 2*MT_disk+MT_cyl    #[cm**2]
 		
+		insApt =   729.65877 #12 in diameter aperture in cm**2 
+		MT_Area -= 2*insNum*insApt
 		MT_Area = MT_Area*1.3
 		
 		#Radius and height of VCS1
@@ -42,6 +44,7 @@ def load_areas(config='theo'):
 		VCS1_disk = np.pi*R_VCS1**2      #[cm**2]
 		VCS1_cyl = 2*np.pi*R_VCS1*h_VCS1    #[cm**2]
 		VCS1_Area = 2*VCS1_disk+VCS1_cyl   #[cm**2]
+		VCS1_Area -= 2*insNum*insApt
 		
 		#Radius and height of VCS2
 		R_VCS2 = 186.1/2  #[cm]
@@ -51,6 +54,7 @@ def load_areas(config='theo'):
 		VCS2_disk = np.pi*R_VCS2**2      #[cm**2]
 		VCS2_cyl = 2*np.pi*R_VCS2*h_VCS2    #[cm**2]
 		VCS2_Area = 2*VCS2_disk+VCS2_cyl   #[cm**2]
+		VCS2_Area -= 2*insNum*insApt
 		
 	elif config =='ULDB' or config=='ULDB2':
 		
