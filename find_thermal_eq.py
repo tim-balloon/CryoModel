@@ -194,6 +194,7 @@ def find_equilibrium(args):
 		VCS2_load += VCS2excess
 		
 		mdot = MT / l
+		mdot2 = MTLoad / l
 		
 		#print VCS1, VCS2, mdot
 		#Check if loads ~ zero
@@ -206,7 +207,8 @@ def find_equilibrium(args):
 			print('OCS gas cooling power: %s' % gasCoolingVCS2)
 						
 			print('mdot (g/s): %s, Holdtime (days): %s' % (mdot, holdtime(mdot, numLiters = numLiters)))
-			print('SLPM: %s' % (mdot2SLPM(mdot)))
+			print('SLPM (from MT/l): %s' % (mdot2SLPM(mdot)))
+			print('SLPM (from MTLoad/l): %s' % (mdot2SLPM(mdot2)))
 			#print summary
 			print(' Stage |Temperature |')
 			print(' OCS   | %1.2f K |' % T_VCS2)
