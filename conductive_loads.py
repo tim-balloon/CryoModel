@@ -311,7 +311,7 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 	elif config == 'theo1':
 		#vcs 1 intercept only
 		# Relevant lengths in meters
-		length = -.03
+		length = -0.03
 		L_MTLargeFlex = 0.07874 + length  #full length to shell, no VCS intercepts
 		L_VCS1LargeFlex = 0.0203 - length
 		L_VCS2LargeFlex = 1e-4

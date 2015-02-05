@@ -21,7 +21,7 @@ def find_equilibrium(args):
 	VCS1 = 1
 	VCS2 = 2
 	#setting initial temperatures and flows -20C = 253.15
-	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.2, 10., 100., 250.)
+	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., 248.)
 	mdot = 0.030
 	
 	#Cooling efficiencies
@@ -150,6 +150,7 @@ def find_equilibrium(args):
 		l = 21. #Helium heat of evaporization [J/g]
 	   	
 		MTexcess = args.mtExcess #excess load in watts?	
+		VCS2excess = args.VCS2Excess #excess load in watts?	
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
@@ -187,7 +188,10 @@ def find_equilibrium(args):
 		VCS2_load = Rad_VCS2  + window_VCS2 
 		
 		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
+		VCS2 += VCS2excess
+		
 		VCS2_load += cfact*flexCondLoad4In + cfact*tubeCondLoad4In
+		VCS2_load += VCS2excess
 		
 		mdot = MT / l
 		
@@ -249,6 +253,7 @@ if __name__ == '__main__':
 	parser.add_argument('-sftEmpty', dest = 'sftEmpty', action = 'store_true', help='Model with the SFT empty')
 	parser.add_argument('-noInserts', dest = 'windowsOpen', action = 'store_false', help='Run with no inserts installed (no filters)')
 	parser.add_argument('-mtExcess', dest = 'mtExcess', action = 'store', type = float, default= 0.0, help='Excess load on MT, in Watts')
+	parser.add_argument('-VCS2Excess', dest = 'VCS2Excess', action = 'store', type = float, default= 0.0, help='Excess load on VCS2, in Watts')
 
 	args = parser.parse_args()
 	
