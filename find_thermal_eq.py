@@ -21,7 +21,8 @@ def find_equilibrium(args):
 	VCS1 = 1
 	VCS2 = 2
 	#setting initial temperatures and flows -20C = 253.15
-	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., 248.)
+	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., args.VVTemp)
+	#(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., 280.)
 	mdot = 0.030
 	
 	#Cooling efficiencies
@@ -106,8 +107,9 @@ def find_equilibrium(args):
 				filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
 				insNum, **radmodel_params)
 		else:
-			window_MT, window_VCS1, window_VCS2 = np.zeros(3)
+			inband, window_MT, window_VCS1, window_VCS2 = np.zeros(4)
 			insNum = 0.0
+			
 
 		if args.keller:
 			
@@ -256,6 +258,7 @@ if __name__ == '__main__':
 	parser.add_argument('-noInserts', dest = 'windowsOpen', action = 'store_false', help='Run with no inserts installed (no filters)')
 	parser.add_argument('-mtExcess', dest = 'mtExcess', action = 'store', type = float, default= 0.0, help='Excess load on MT, in Watts')
 	parser.add_argument('-VCS2Excess', dest = 'VCS2Excess', action = 'store', type = float, default= 0.0, help='Excess load on VCS2, in Watts')
+	parser.add_argument('-VVTemp', dest = 'VVTemp', action = 'store', type = float, default= 248.0, help='Vacuum vessel wall temperature')
 
 	args = parser.parse_args()
 	
