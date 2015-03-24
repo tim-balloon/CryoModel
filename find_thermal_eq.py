@@ -26,8 +26,8 @@ def find_equilibrium(args):
 	mdot = 0.030
 	
 	#Cooling efficiencies
-	e_23 = 1    #cooling efficiency between MT and VCS1
-	e_34 = 0.9  #cooling efficiency between VCS1 and VCS2
+	e_23 = 0.9 #1    #cooling efficiency between MT and VCS1
+	e_34 = 0.9 # 0.9  #cooling efficiency between VCS1 and VCS2
   	
 	sftPumped = True
 	#sftEmpty = False
@@ -73,7 +73,14 @@ def find_equilibrium(args):
                 radmodel_params = models['ar_nonylon_windowshader']
 	else:
 	        radmodel_params = models['ar_nonylon']
-	M = RadiativeModel()
+	if args.ground:
+		opts = {}
+		#opts['atmfile'] = 'am_01km.dat'
+		opts['tsky'] = 300.0
+		opts['atmos']= False
+	else:
+		opts = {}
+	M = RadiativeModel(**opts)
         
 	#Counter and maximum number of iterations
 	n = 1
@@ -84,8 +91,8 @@ def find_equilibrium(args):
 	sfteps = 0.0005
 	DeltaT = 0.02
 	#gain = 0.025
-	gain = 0.05
-	#gain = 0.1
+	#gain = 0.05
+	gain = 0.1
 	    
 	while n <=maxIter:
 		if (abs(VCS1) > abs(VCS2)):
@@ -117,6 +124,7 @@ def find_equilibrium(args):
 				mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
 					p_ins=1e-4, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config, insNum = insNum)
 			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
+			#Rad_VCS2 *= 1.5
 					
 		else:			
 			mli_load_VCS1, mli_load_VCS2 = mli_cond(T_VCS1, T_VCS2, T_Shell, config = config, insNum = insNum)
@@ -151,16 +159,27 @@ def find_equilibrium(args):
 		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
 		l = 21. #Helium heat of evaporization [J/g]
 	   	
-		MTexcess = args.mtExcess #excess load in watts?	
+		MTexcess = args.mtExcess #excess load in watts. coming from VCS1
+		
+		SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
+		
+		scale=4.
+		MTexcessShell = sigma*(args.mtLLVCS2perc/100.)*MT_Area*(T_Shell**scale - T_MT**scale) #direct LL from shell, not cooling power
+		MTexcess2 = sigma*(args.mtLLVCS1perc/100.)*MT_Area*(T_VCS2**scale - T_MT**scale) #LL from VCS2, cools VCS2
+
+		VCS1excess = args.VCS1Excess #excess load in watts?			
+		VCS1excessShell = sigma*(args.VCS1LLperc/100.)*VCS1_Area*(T_Shell**scale-T_VCS1**scale)	
+			
 		VCS2excess = args.VCS2Excess #excess load in watts?	
+		
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
-		MT += MTexcess
+		MT += MTexcess + MTexcess2 + MTexcessShell
 		
 		MTLoad = capLoad + Rad_MT + window_MT \
 				+ flexCondLoad2in + tubeCondLoad_MT \
-				+ MTexcess
+				+ MTexcess + MTexcess2 + MTexcessShell
 				
 		SFTLoad = Rad_SFT
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
@@ -180,13 +199,14 @@ def find_equilibrium(args):
 		
 		VCS1_load = Rad_VCS1 + window_VCS1
 		
-		VCS1 +=  flexCondLoad_VCS1 
-		VCS1_load += cfact*flexCondLoad3In
+		VCS1 +=  flexCondLoad_VCS1
+		VCS1 += VCS1excess + VCS1excessShell
+		VCS1_load += cfact*flexCondLoad3In + VCS1excess + VCS1excessShell
 		
 		ocsCryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
 		
 		VCS2 = Rad_VCS2  + window_VCS2 \
-				-Rad_VCS1 - gasCoolingVCS2 - ocsCryocooler
+				-Rad_VCS1 - gasCoolingVCS2 - ocsCryocooler - MTexcess2 - VCS1excess
 		VCS2_load = Rad_VCS2  + window_VCS2 
 		
 		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
@@ -257,8 +277,13 @@ if __name__ == '__main__':
 	parser.add_argument('-sftEmpty', dest = 'sftEmpty', action = 'store_true', help='Model with the SFT empty')
 	parser.add_argument('-noInserts', dest = 'windowsOpen', action = 'store_false', help='Run with no inserts installed (no filters)')
 	parser.add_argument('-mtExcess', dest = 'mtExcess', action = 'store', type = float, default= 0.0, help='Excess load on MT, in Watts')
+	parser.add_argument('-VCS1Excess', dest = 'VCS1Excess', action = 'store', type = float, default= 0.0, help='Excess load on VCS1, in Watts')
 	parser.add_argument('-VCS2Excess', dest = 'VCS2Excess', action = 'store', type = float, default= 0.0, help='Excess load on VCS2, in Watts')
+	parser.add_argument('-mtLLVCS1perc', dest = 'mtLLVCS1perc', action = 'store', type = float, default= 0.0, help='Percent of area light leak load on MT through VCS1')
+	parser.add_argument('-mtLLVCS2perc', dest = 'mtLLVCS2perc', action = 'store', type = float, default= 0.0, help='Percent of area light leak load on MT through VCS2')
+	parser.add_argument('-VCS1LLperc', dest = 'VCS1LLperc', action = 'store', type = float, default= 0.0, help='Percent of area light leak load on VCS1')
 	parser.add_argument('-VVTemp', dest = 'VVTemp', action = 'store', type = float, default= 248.0, help='Vacuum vessel wall temperature')
+	parser.add_argument('-ground', dest = 'ground', action = 'store_true', help='Ground loading?')
 
 	args = parser.parse_args()
 	

@@ -89,7 +89,7 @@ def LFlexH(T_min, T_max, L, T_G10, k_G10):
 	'''Conductivity through large Theo flexures cross sectional area
 	of length L'''
 	t = 0.00159    #[m]
-	w = 0.13 #0.06513;    #[m]
+	w = 0.127 #0.06513;    #[m]
 	A = t*w
 	if T_min == T_max:
 		return 0
