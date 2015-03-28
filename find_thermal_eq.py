@@ -15,6 +15,7 @@ from gas_props import *
 import argparse
 
 from radmodel import *
+from wiring import wiring_load
 
 def find_equilibrium(args):
 	#Calculating the starting net heat load on VCS1 and VCS2
@@ -140,6 +141,13 @@ def find_equilibrium(args):
 		#print('TVCS1: %s, VCS1 window power: %s' % (T_VCS1, window_VCS1))
 		#print('MT window power: %s' % window_MT)
  
+                # Conduction through electrical wiring
+                wdict = wiring_load(t_sft=T_SFT, t_mt=T_MT, t_vcs1=T_VCS1,
+                                    t_vcs2=T_VCS2, t_vv=T_Shell, num_inserts=insNum)
+                wire_VCS1_in = wdict['vv_vcs1']
+                wire_VCS1_out = wdict['vcs1_mt']
+                wire_MT = wdict['vcs1_mt']
+
 		##CONDUCTION through flexures and stainless tubes##
 		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out, 
 		    flexCondLoad1, flexCondLoad2in, flexCondLoad2out, flexCondLoad3In, 
@@ -174,10 +182,12 @@ def find_equilibrium(args):
 		
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
+                MT += wire_MT
 		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
 		MT += MTexcess + MTexcess2 + MTexcessShell
 		
 		MTLoad = capLoad + Rad_MT + window_MT \
+                                + wire_MT \
 				+ flexCondLoad2in + tubeCondLoad_MT \
 				+ MTexcess + MTexcess2 + MTexcessShell
 				
@@ -198,6 +208,9 @@ def find_equilibrium(args):
 				-MTexcess
 		
 		VCS1_load = Rad_VCS1 + window_VCS1
+
+                VCS1 += wire_VCS1_in - wire_VCS1_out
+                VCS1_load += wire_VCS1_in
 		
 		VCS1 +=  flexCondLoad_VCS1
 		VCS1 += VCS1excess + VCS1excessShell
