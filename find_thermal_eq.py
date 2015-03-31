@@ -62,8 +62,11 @@ def find_equilibrium(args):
 	#window_MT =  insNum*0.05 #50 mW estimate
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	
-	capLoad = 0.008 #~50mW / 6 for capillary box
-				
+	#capLoad = 0.008 #~50mW / 6 for capillary box
+	if args.windowsOpen:
+		capLoad = 0.123 #~2SLPM
+	else:
+		capLoad = 0
 	# filter model
 	# TODO: add options for different loads at the aperture
 	# (cf. radmodel.main())
@@ -145,7 +148,7 @@ def find_equilibrium(args):
 		    flexCondLoad1, flexCondLoad2in, flexCondLoad2out, flexCondLoad3In, 
 		    flexCondLoad3Out, flexCondLoad4In, flexCondLoad4Out) = cond_loads(T_SFT,T_MT,T_VCS1,T_VCS2,T_Shell,
 				sftPumped,sftEmpty,insNum, config = config, flexFactor = args.flexFactor)
-		cfact = 1.2		
+		cfact = 1.	
 		tubeCondLoad_SFT = cfact*tubeCondLoad1
 		tubeCondLoad_MT = cfact*tubeCondLoad2
 		tubeCondLoad_VCS2 = cfact*(tubeCondLoad4In + tubeCondLoad4Out)
@@ -178,7 +181,7 @@ def find_equilibrium(args):
 		MT += MTexcess + MTexcess2 + MTexcessShell
 		
 		MTLoad = capLoad + Rad_MT + window_MT \
-				+ flexCondLoad2in + tubeCondLoad_MT \
+				+ cfact*flexCondLoad2in + tubeCondLoad_MT \
 				+ MTexcess + MTexcess2 + MTexcessShell
 				
 		SFTLoad = Rad_SFT
