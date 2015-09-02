@@ -69,7 +69,7 @@ def uprint(v, unit='W', format='%12.6f', cd=False):
                 -2 : 'c',   # centi
                  -1 : 'd',   # deci
                  })
-    
+
     vlist = np.array(sorted(udict.keys()))
     lv = np.log10(np.abs(v))
     if (lv<vlist.min()): idx = 0
@@ -142,7 +142,7 @@ class FilterModel(object):
         if t_highf is not None:
             self.trans_raw[-1] = t_highf
         self.trans = self._interpt(wavelength=wavelength,
-                                   t_min=t_min, t_max=t_max) 
+                                   t_min=t_min, t_max=t_max)
         if type == 'partial':
             if abs_filename is None:
                 raise ValueError,'Need filename for absorption data'
@@ -154,20 +154,20 @@ class FilterModel(object):
                 self.abs_raw[-1] = a_highf
             self.abs = self._interpa(wavelength=wavelength,
                                      a_min=a_min, a_max=a_max)
-            
+
             # add AR coat absorption
             if isinstance(arc,FilterModel):
                 a = self.abs
                 b = arc.abs
                 self.abs = 1 - (1-a)*((1-b)**2)
-            
+
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
                                   1 - self.abs, self.trans)
-    
+
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self.name)
-    
+
     def _load_from_file(self,filename,nfilt=1,norm=False):
         """
         Read in filter transmission spectrum
@@ -178,10 +178,10 @@ class FilterModel(object):
             filename = os.path.join(realdir, 'rad_data', filename)
         if not os.path.isfile(filename):
             raise OSError,'Cannot find filter file %s' % filename_orig
-        
+
         self.filename = filename
         self.nfilt = nfilt
-        
+
         f,t = np.loadtxt(filename,unpack=True,skiprows=1)
         t = t**nfilt
         l = 1.0e4/f # microns
@@ -190,7 +190,7 @@ class FilterModel(object):
         self.wavelength_raw = l
         if norm: t /= np.max(t)
         self.trans_raw = threshold(t,low=0.0,high=1.0)
-        
+
     def _load_abs_from_file(self,abs_filename, thickness=2.18, norm=False):
         abs_filename_orig = abs_filename
         if not os.path.isfile(abs_filename):
@@ -199,7 +199,7 @@ class FilterModel(object):
         if not os.path.isfile(abs_filename):
             raise OSError,\
                 'Cannot find filter file %s' % abs_filename_orig
-            
+
         f,a = np.loadtxt(abs_filename,unpack=True,skiprows=1)
         l = 1.0e4/f # microns
         l = np.append(np.insert(l,0,1e6),1e-6)
@@ -210,8 +210,8 @@ class FilterModel(object):
         # if norm: a /= np.max(a)
         self.abs_raw = a
         self.thickness = thickness
-        
-    def _load_from_params(self,fcent=None, width=None, amp=None, 
+
+    def _load_from_params(self,fcent=None, width=None, amp=None,
                           nfilt=1,norm=False):
         """
         Generate filter transmission from parameters
@@ -226,12 +226,12 @@ class FilterModel(object):
             raise ValueError, 'missing filter width'
         if amp is None:
             raise ValueError, 'missing filter transmission amplitude'
-        
+
         self.fcent = fcent
         self.width = width
         self.amp = amp
         self.nfilt = nfilt
-        
+
         f = np.linspace(1,50,1024)
         t = np.ones_like(f)
         p = np.where(f>=fcent)
@@ -244,7 +244,7 @@ class FilterModel(object):
         if norm: t /= np.max(t)
         self.wavelength_raw = l
         self.trans_raw = t
-        
+
     def _interpt(self,wavelength=None,t_min=None,t_max=None):
         if wavelength is not None:
             idx = self.wavelength_raw.argsort()
@@ -262,7 +262,7 @@ class FilterModel(object):
         else: a = self.abs_raw
         a = threshold(a,low=a_min,high=a_max)
         return a
-    
+
     def get_trans(self,wavelength=None,t_min=0,t_max=1):
         if wavelength is not None:
             t = self._interpt(wavelength)
@@ -285,7 +285,7 @@ class FilterModel(object):
             return 1.0 - self.get_trans(wavelength,t_min,t_max)
         else:
             raise KeyError,'unknown filter type %s' % self.type
-    
+
     def get_ref(self,wavelength=None,t_min=0,t_max=1,
                 a_min=0,a_max=1):
         if self.type == 'reflector':
@@ -303,6 +303,13 @@ class PolyFilter(FilterModel):
         kwargs['type'] = 'partial'
         kwargs['abs_filename'] = 'poly_abs.txt'
         super(PolyFilter,self).__init__(name, filename,
+                                        thickness=thickness, **kwargs)
+
+class PTFEFilter(FilterModel):
+    def __init__(self, name, filename=None, thickness=1, **kwargs):
+        kwargs['type'] = 'partial'
+        kwargs['abs_filename'] = 'ptfe_abs_icm.txt'
+        super(PTFEFilter,self).__init__(name, filename,
                                         thickness=thickness, **kwargs)
 
 class MylarFilter(FilterModel):
@@ -333,10 +340,17 @@ class HotPressFilter(PolyFilter):
         super(HotPressFilter,self).__init__(name, filename, thickness,
                                         **kwargs)
 
-class ShaderFilter(MylarFilter):
+class MylarShader(MylarFilter):
+    def __init__(self, name, filename=None, thickness=0.0015, t_highf=0.5,
+                 a_highf=0.5, **kwargs):
+        super(MylarShader,self).__init__(name, filename, thickness,
+                                          t_highf=t_highf, a_highf=a_highf,
+                                          **kwargs)
+
+class PolyShader(PolyFilter):
     def __init__(self, name, filename=None, thickness=0.004, t_highf=0.5,
                  a_highf=0.5, **kwargs):
-        super(ShaderFilter,self).__init__(name, filename, thickness,
+        super(PolyShader,self).__init__(name, filename, thickness,
                                           t_highf=t_highf, a_highf=a_highf,
                                           **kwargs)
 
@@ -355,7 +369,7 @@ class NylonFilter(FilterModel):
             a = self.abs
             b = arc.abs
             self.abs = 1 - (1-a)*((1-b)**2)
-        
+
             # correct transmission if absorption is high
             self.trans = np.where(self.trans + self.abs > 1,
                                   1 - self.abs, self.trans)
@@ -372,15 +386,15 @@ class NylonFilter(FilterModel):
         else:
             if a is None: raise ValueError,'missing a'
             if b is None: raise ValueError, 'missing b'
-        
+
         self.a = a
         self.b = b
         self.thickness = thickness
         self.wavelength = wavelength
-        
+
         dx = thickness/10.0 # cm
         f = 1.0e4/wavelength # icm
-        
+
         alpha = a*(f**b)
         arg = threshold(alpha*dx,high=13)
         t = threshold(np.exp(-arg),low=t_min,high=t_max)
@@ -389,15 +403,15 @@ class NylonFilter(FilterModel):
         self.abs = 1 - t
 
 class Cirlex(FilterModel):
-    
+
     def __init__(self,frequency):
         self.name = 'cirlex'
         self.frequency = frequency
         self.type = 'absorber'
-    
+
     def get_trans(self,wavelength=None,t_min=None,t_max=None):
         if not hasattr(self,'trans'):
-            # from Judy Lau's thesis, calculate the loss tangent at room 
+            # from Judy Lau's thesis, calculate the loss tangent at room
             # temperature
             tandelta_cirlex_warm = \
                 (2.0 * (0.037*(self.frequency/150)**0.52)) / 3.37
@@ -419,12 +433,20 @@ class Cirlex(FilterModel):
             self.trans = threshold(trans_cirlex_cold,low=t_min,high=t_max)
         return self.trans
 
+    def get_abs(self, wavelength=None, a_min=None, a_max=None,
+                t_min=None, t_max=None):
+        if not hasattr(self, 'abs'):
+            self.abs = 1 - self.get_trans(wavelength=wavelength,
+                                          t_min=t_min, t_max=t_max)
+        return super(Cirlex, self).get_abs(wavelength=wavelength,
+                                           a_min=a_min, a_max=a_max)
+
 class Quartz(Cirlex):
-    
+
     def __init__(self,*args,**kwargs):
         super(Quartz,self).__init__(*args,**kwargs)
         self.name = 'quartz'
-    
+
     def get_trans(self,wavelength=None,t_min=None,t_max=None):
         if not hasattr(self,'trans'):
             trans = np.power(
@@ -440,7 +462,7 @@ class Quartz(Cirlex):
 ###########################################
 
 class RadiativeSurface(object):
-    
+
     def __init__(self, name, temperature=None, frequency=None,
                  bb=0, trans=1.0, abs=0.0, ref=0.0, incident=None,
                  wavelength=None, aperture=None, area=None,
@@ -467,44 +489,44 @@ class RadiativeSurface(object):
             self.area = area
         self.incident = incident
         if incident is not None: self.propagate(incident)
-    
+
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self.name)
-    
+
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
-        
+
         if self.incident:
             self.verbose = self.incident.verbose
-            
+
         if self.verbose:
             print 'Propagating to', self.name
-            
+
         # get spectra
         tloc = self.get_trans()
         eloc = self.get_abs()
         rloc = self.get_ref()
         bb = self.bb
+
         # initialize
-        self.itrans_list = []
-        self.itrans = 0.0
-        self.iemis_list = []
-        self.iemis = 0.0
-        self.iabs_list = []
-        self.iabs = 0.0
-        self.iref_list = []
-        self.iref = 0.0
-        self.iload_list = []
-        self.iload = 0.0
+        def initattr(attr):
+            setattr(self, attr+'_list', [])
+            setattr(self, attr, 0.0)
+        initattr('itrans')
+        initattr('iemis')
+        initattr('iabs')
+        initattr('iref')
+        initattr('iload')
+
         if self.incident:
-            
+
             # inherit some common stuff from the incident source
             self.wavelength = self.incident.wavelength
             self.frequency = self.incident.frequency
             if self.temperature is not None and self.frequency is not None:
                 self.bb = blackbody(self.frequency, self.temperature)
             self.area = self.incident.area
-            
+
             # loop over all incident power sources
             ilist = self.incident.get_itrans_list() \
                     + self.incident.get_iemis_list()
@@ -521,21 +543,23 @@ class RadiativeSurface(object):
                 if not np.all(rloc==0):
                     self.iref_list = [('%s ref %s' % (iname, self.name),
                                        ii*rloc) for iname, ii in ilist]
-        # add reemitted power to transmitted sources
+        # reemitted power
         if not ( np.all(bb==0) or np.all(eloc==0) ):
             self.iemis_list.append(('%s emis' % self.name, bb*eloc))
+            # subtract emission from loading
+            self.iload_list.append(('%s emis' % self.name, -bb*eloc))
+
         # total up
-        if len(self.iemis_list):
-            self.iemis = np.sum([x[1] for x in self.iemis_list], axis=0)
-        if len(self.itrans_list):
-            self.itrans = np.sum([x[1] for x in self.itrans_list], axis=0)
-        if len(self.iabs_list):
-            self.iabs = np.sum([x[1] for x in self.iabs_list], axis=0)
-        if len(self.iref_list):
-            self.iref = np.sum([x[1] for x in self.iref_list], axis=0)
-        if len(self.iload_list):
-            self.iload = np.sum([x[1] for x in self.iload_list], axis=0)
-        
+        def sumattr(attr):
+            lattr = getattr(self, attr+'_list')
+            if len(lattr):
+                setattr(self, attr, np.sum([x[1] for x in lattr], axis=0))
+        sumattr('iemis')
+        sumattr('itrans')
+        sumattr('iabs')
+        sumattr('iref')
+        sumattr('iload')
+
     def results(self, filename=None, mode='w', display=True, summary=False):
         if isarr(self.frequency):
             freq = self.frequency*1e9 # hz
@@ -543,45 +567,28 @@ class RadiativeSurface(object):
                 from scipy.constants import c
                 conv = np.power(c/freq,2)
             else: conv = self.area*np.pi # hemispherical scattering!
-            self.itrans_int = integrate(conv*self.itrans, freq, idx=self.band)
-            self.iemis_int = integrate(conv*self.iemis, freq, idx=self.band)
-            self.iabs_int = integrate(conv*self.iabs, freq, idx=self.band)
-            self.iref_int = integrate(conv*self.iref, freq, idx=self.band)
-            self.iload_int = integrate(conv*self.iload, freq, idx=self.band)
-            self.iemis_list_int = []
-            self.itrans_list_int = []
-            self.iabs_list_int = []
-            self.iref_list_int = []
-            self.iload_list_int = []
-            if len(self.iemis_list):
-                self.iemis_list_int = [(x[0],
-                                        integrate(conv*x[1], freq, idx=self.band))
-                                       for x in self.iemis_list]
-            if len(self.itrans_list):
-                self.itrans_list_int = [(x[0],
-                                         integrate(conv*x[1], freq, idx=self.band))
-                                        for x in self.itrans_list]
-            if len(self.iabs_list):
-                self.iabs_list_int = [(x[0],
-                                       integrate(conv*x[1], freq, idx=self.band))
-                                      for x in self.iabs_list]
-            if len(self.iref_list):
-                self.iref_list_int = [(x[0],
-                                       integrate(conv*x[1], freq, idx=self.band))
-                                      for x in self.iref_list]
-            if len(self.iload_list):
-                self.iload_list_int = [(x[0],
-                                        integrate(conv*x[1], freq, idx=self.band))
-                                       for x in self.iload_list]
-        
+
+            def integ(v):
+                return integrate(conv * v, freq, idx=self.band)
+
+            def integattr(attr):
+                setattr(self, attr+'_int', integ(getattr(self, attr)))
+                setattr(self, attr+'_list_int', [(x[0], integ(x[1])) for x in
+                                                 getattr(self, attr+'_list')])
+            integattr('itrans')
+            integattr('iabs')
+            integattr('iref')
+            integattr('iemis')
+            integattr('iload')
+
         if not display: return
-        
+
         if filename is None:
             import sys
             f = sys.stdout
         else:
             f = open(filename, mode)
-        
+
         f.write('*'*80+'\n')
         f.write('%-8s: %s\n' % ('Surface', self.name))
         if self.incident:
@@ -590,23 +597,23 @@ class RadiativeSurface(object):
             f.write('%-12s: %s\n' % ('INCIDENT', uprint(pin)))
             norm = pin
         else: norm = self.iemis_int
-        f.write('%-12s: %s %10.3f%%\n' % 
+        f.write('%-12s: %s %10.3f%%\n' %
                 ('EMITTED',uprint(self.iemis_int), self.iemis_int/norm*100))
         if not summary:
             if self.iemis_int:
                 for x in self.iemis_list_int:
-                    f.write('  %-15s %s %10.3f%%\n' % 
+                    f.write('  %-15s %s %10.3f%%\n' %
                             (x[0].split('emis')[0].strip(), uprint(x[1]),
                              x[1]/self.iemis_int*100))
-        f.write('%-12s: %s %10.3f%%\n' % 
+        f.write('%-12s: %s %10.3f%%\n' %
                 ('TRANSMITTED',uprint(self.itrans_int), self.itrans_int/norm*100))
         if not summary:
             if self.itrans_int:
                 for x in self.itrans_list_int:
-                    f.write('  %-15s %s %10.3f%%\n' % 
+                    f.write('  %-15s %s %10.3f%%\n' %
                             (x[0].split('emis')[0].strip(), uprint(x[1]),
                              x[1]/self.itrans_int*100))
-        f.write('%-12s: %s %10.3f%%\n' % 
+        f.write('%-12s: %s %10.3f%%\n' %
                 ('ABSORBED',uprint(self.iabs_int), self.iabs_int/norm*100))
         if not summary:
             if self.iabs_int:
@@ -619,7 +626,7 @@ class RadiativeSurface(object):
                     f.write('  %-15s%s %s %10.3f%%\n' %
                             (tag, tag2, uprint(x[1]),
                              x[1]/self.iabs_int*100))
-        f.write('%-12s: %s %10.3f%%\n' % 
+        f.write('%-12s: %s %10.3f%%\n' %
                 ('REFLECTED',uprint(self.iref_int), self.iref_int/norm*100))
         if not summary:
             if self.iref_int:
@@ -632,7 +639,7 @@ class RadiativeSurface(object):
                     f.write('  %-15s%s %s %10.3f%%\n' %
                             (tag, tag2, uprint(x[1]),
                              x[1]/self.iref_int*100))
-        f.write('%-12s: %s %10.3f%%\n' % 
+        f.write('%-12s: %s %10.3f%%\n' %
                 ('LOADING',uprint(self.iload_int), self.iload_int/norm*100))
         if not summary:
             if self.iload_int:
@@ -652,7 +659,7 @@ class RadiativeSurface(object):
                              x[1]/self.iload_int*100))
         if filename is not None:
             f.close()
-        
+
     def checkinc(self, incident, force=False):
         if incident is None:
             if self.incident is None:
@@ -671,95 +678,95 @@ class RadiativeSurface(object):
             return True
         self.incident = incident
         return False
-        
+
     def checkprop(self, attr=None, incident=None):
         if attr is None or not hasattr(self,attr):
             self.propagate(incident)
-            
+
     def get_trans(self):
         """Transmission spectrum"""
         return self.trans
-    
+
     def get_abs(self):
         """Emission spectrum"""
         return self.abs
-    
+
     def get_ref(self):
         """Reflection spectrum"""
         return self.ref
-    
+
     def get_iemis(self, incident=None):
         self.checkprop('iemis', incident)
         return self.iemis
-        
+
     def get_iemis_list(self, incident=None):
         self.checkprop('iemis_list', incident)
         return self.iemis_list
-        
+
     def get_itrans(self, incident=None):
         """Transmitted power, given incident stage"""
         self.checkprop('itrans', incident)
         return self.itrans
-    
+
     def get_itrans_list(self, incident=None):
         """Transmitted power broken down into components"""
         self.checkprop('itrans_list', incident)
         return self.itrans_list
-    
+
     def get_iabs(self, incident=None):
         """Absorbed power, given incident stage"""
         self.checkprop('iabs', incident)
         return self.iabs
-    
+
     def get_iabs_list(self, incident=None):
         """Absorbed power broken down into components"""
         self.checkprop('iabs_list', incident)
         return self.iabs_list
-    
+
     def get_iref(self, incident=None):
         """Reflected power, given incident stage"""
         self.checkprop('iref', incident)
         return self.iref
-    
+
     def get_iref_list(self, incident=None):
         """Reflected power broken down into components"""
         self.checkprop('iref_list', incident)
         return self.iref_list
-    
+
     def get_iload(self, incident=None):
         """Load power, given incident stage"""
         self.checkprop('iload', incident)
         return self.iload
-    
+
     def get_iload_list(self, incident=None):
         """Load power broken down into components"""
         self.checkprop('iload_list', incident)
         return self.iload_list
-    
+
     def get_norm_spec(self,attr):
         if not hasattr(self,attr): return None, 0
         spec = getattr(self,attr)
         if np.isscalar(spec): return None, 0
         if not isinstance(spec,np.ndarray): return None, 0
         return spec, spec.max()
-    
+
     def _plot(self, spectra, x=None, prefix='', suffix='',
               xlim=None, ylim=None, xscale='log', yscale='log',
               **kwargs):
-        
+
         if self.verbose:
             print 'Plotting', self.name, suffix.replace('_','')
-        
+
         import pylab
         fig = kwargs.pop('fig', pylab.figure())
         ax = kwargs.pop('ax', pylab.gca())
-        
+
         line_cycle = ['-','--','-.',':']
         from matplotlib import rcParams
         nc = len(rcParams['axes.color_cycle'])
-        
+
         line_count = 0
-        
+
         if x is None: x = self.frequency
         for v,fmt,lab,kw in spectra:
             if isarr(v):
@@ -771,12 +778,12 @@ class RadiativeSurface(object):
                     fmt = line_cycle[int(np.floor(line_count/nc))]
                     ax.plot(x,v,fmt,label=lab,**kw)
                     line_count += 1
-        
+
         if not len(ax.get_lines()):
             if self.verbose:
                 print 'No data!'
             return
-        
+
         ax.set_xscale(xscale)
         ax.set_yscale(yscale)
         ax.set_xlim(xlim)
@@ -786,29 +793,29 @@ class RadiativeSurface(object):
         ax.legend(loc=kwargs.pop('legend_loc', 'best'),
                   ncol=kwargs.pop('legend_ncol', 1))
         ax.set_title(kwargs.pop('title', self.name))
-        
+
         filename = '%s%s%s' % (prefix, self.name, suffix)
         filename = filename.lower().replace(' ','_')
         fig.savefig(kwargs.pop('filename', filename), bbox_inches='tight')
-        
+
         if kwargs.pop('close', True):
             pylab.close()
-    
+
     def plot_tra(self, **kwargs):
-        
+
         trans = self.get_trans()
         abs = self.get_abs()
         ref = self.get_ref()
-        
+
         spectra = [
             (trans, '-b', r'$t_{\nu}$', {}),
             (ref,   '-g', r'$r_{\nu}$', {}),
             (abs,   '-r', r'$a_{\nu}$', {})
             ]
         self._plot(spectra, suffix='_coeff', ylabel='Coefficient', **kwargs)
-    
+
     def plot_spect(self, **kwargs):
-        
+
         if self.incident:
             iitrans, iitnorm = self.incident.get_norm_spec('itrans')
             iibb, iibnorm = self.incident.get_norm_spec('bb')
@@ -818,10 +825,10 @@ class RadiativeSurface(object):
         if ibnorm and itnorm and (itrans==ibb).all(): ibb = None; ibnorm = 0
         iabs, ianorm = self.get_norm_spec('iabs')
         iref, irnorm = self.get_norm_spec('iref')
-        
+
         norm = max([iitnorm, itnorm])
         if not norm: norm = np.max([iibnorm, ibnorm, ianorm, irnorm])
-        
+
         spectra = []
         if self.incident:
             iname = self.incident.name.replace(' ',',').upper()
@@ -849,16 +856,16 @@ class RadiativeSurface(object):
                 (iref/norm,    '-c', r'$I_{\nu}^{R}$', {})
                 ]
         self._plot(spectra, suffix='_spectra', **kwargs)
-        
+
     def plot_trans(self, **kwargs):
-        
+
         if self.incident:
             iitrans, iitnorm = self.incident.get_norm_spec('itrans')
         else: iitnorm = 0.0
         itrans, itnorm = self.get_norm_spec('itrans')
         norm = max([iitnorm, itnorm])
         if not norm: return
-        
+
         spectra = []
         if self.incident:
             spectra += [
@@ -885,12 +892,12 @@ class RadiativeSurface(object):
         self._plot(spectra, suffix='_trans',
                    ylabel='Transmitted Intensity [a.u.]',
                    **kwargs)
-        
+
     def plot_abs(self, **kwargs):
-        
+
         iabs, norm = self.get_norm_spec('iabs')
         if not norm: return
-        
+
         spectra = []
         if self.incident:
             iitrans, norm = self.incident.get_norm_spec('itrans')
@@ -898,7 +905,7 @@ class RadiativeSurface(object):
                 (iitrans/norm, '--k', 'Incident from %s' % self.incident.name,
                  {'lw':2}),
                 ]
-        
+
         spectra += [
             (iabs/norm,  '-k', 'Total Absorbed', {'lw':2}),
             ]
@@ -921,12 +928,12 @@ class RadiativeSurface(object):
                 spectra += [(v/norm, None, tag, {})]
         self._plot(spectra, suffix='_abs', ylabel='Absorbed Intensity [a.u.]',
                    **kwargs)
-        
+
     def plot_ref(self, **kwargs):
-        
+
         iref, norm = self.get_norm_spec('iref')
         if not norm: return
-        
+
         spectra = []
         if self.incident:
             iitrans, norm = self.incident.get_norm_spec('itrans')
@@ -934,7 +941,7 @@ class RadiativeSurface(object):
                 (iitrans/norm, '--k', 'Incident from %s' % self.incident.name,
                  {'lw':2}),
                 ]
-        
+
         spectra += [
             (iref/norm,  '-k', 'Total Reflected', {'lw':2}),
             ]
@@ -956,7 +963,7 @@ class RadiativeSurface(object):
                 spectra += [(v/norm, None, tag, {})]
         self._plot(spectra, suffix='_ref', ylabel='Reflected Intensity [a.u.]',
                    **kwargs)
-        
+
 class FilterSurface(RadiativeSurface):
     def __init__(self, name, filt, **kwargs):
         super(FilterSurface,self).__init__(name, **kwargs)
@@ -966,7 +973,7 @@ class FilterSurface(RadiativeSurface):
         self.ref = filt.get_ref()
 
 class RadiativeStack(RadiativeSurface):
-    
+
     def __init__(self, name, surfaces, incident=None, outer_ref_load=False,
                  **kwargs):
         super(RadiativeStack, self).__init__(name, **kwargs)
@@ -976,21 +983,21 @@ class RadiativeStack(RadiativeSurface):
         self.incident = incident
         self.outer_ref_load = outer_ref_load
         if incident is not None: self.propagate(incident)
-    
+
     def propagate(self, incident=None, force=False):
         if self.checkinc(incident, force=force): return
         self.verbose = self.incident.verbose
-        
+
         if self.verbose:
             print 'Propagating to', self.name
-        
+
         # inherit some common stuff from the incident source
         self.wavelength = self.incident.wavelength
         self.frequency = self.incident.frequency
         if self.temperature is not None and self.frequency is not None:
             self.bb = blackbody(self.frequency, self.temperature)
         self.area = self.incident.area
-        
+
         curinc = incident
         self.iabs_list = []
         self.iref_list = []
@@ -1012,11 +1019,15 @@ class RadiativeStack(RadiativeSurface):
             # update absorbed power sourcs
             self.iabs_list.extend(S.get_iabs_list())
             self.iload_list.extend(S.get_iload_list())
-            # update reflected power sources. 
+            # update reflected power sources.
             # rlist = [(rname, rr*self.trans) for rname,rr in S.get_iref_list()]
             rlist = S.get_iref_list()
             self.iref_list.extend(rlist)
             # treat reflected terms as loads on the current stage (pessimistic limit)
+            # if not self.outer_ref_load or S != self.surfaces[0]:
+            #     self.iload_list.extend([(rname, rr*(1-self.trans))
+            #                             for rname,rr in rlist])
+            # else:
             if not self.outer_ref_load or S != self.surfaces[0]:
                 self.iload_list.extend(rlist)
             # reflectivity
@@ -1052,70 +1063,70 @@ class RadiativeStack(RadiativeSurface):
         if len(self.iload_list):
             self.iload = np.sum([x[1] for x in self.iload_list], axis=0)
         else: self.iload = 0
-    
+
     def checkinc(self, incident, force=False):
         if incident is None:
             if self.incident is None:
                 if len(self.surfaces):
                     self.incident = self.surfaces[0]
         return super(RadiativeStack, self).checkinc(incident, force=force)
-        
+
     def get_trans(self):
         """Transmission spectrum"""
         self.checkprop()
         return self.trans
-    
+
     def get_abs(self):
         """Emission spectrum"""
         self.checkprop()
         return self.abs
-    
+
     def get_ref(self):
         """Reflection spectrum"""
         self.checkprop()
         return self.ref
-    
+
     def plot_tra(self, **kwargs):
         for S in self.surfaces:
             S.plot_tra(**kwargs)
         return super(RadiativeStack, self).plot_tra(**kwargs)
-    
+
     def plot_spect(self, **kwargs):
         for S in self.surfaces:
             S.plot_spect(**kwargs)
         return super(RadiativeStack, self).plot_spect(**kwargs)
-    
+
     def plot_trans(self, **kwargs):
         for S in self.surfaces:
             S.plot_trans(**kwargs)
         return super(RadiativeStack, self).plot_trans(**kwargs)
-    
+
     def plot_abs(self, **kwargs):
         for S in self.surfaces:
             S.plot_abs(**kwargs)
         return super(RadiativeStack, self).plot_abs(**kwargs)
-    
+
     def plot_ref(self, **kwargs):
         for S in self.surfaces:
             S.plot_ref(**kwargs)
         return super(RadiativeStack, self).plot_ref(**kwargs)
-    
+
     def results(self, display_this=True, summary=False, **kwargs):
         if not summary or (summary and not display_this):
             for S in self.surfaces:
                 S.results(summary=summary, **kwargs)
         if display_this:
             return super(RadiativeStack, self).results(summary=summary, **kwargs)
-    
+
 ###########################################
 
 class RadiativeModel(object):
-    
+
     # frequency above which the sky is a simple 273K blackbody
     _MAX_FATMOS = 1000.0
     # emissivity assumed for 273K atmosphere beyond 1 THz
     _ATMOS_EMIS = 1e-1
-    
+
     def __init__(self,**kwargs):
         self.params = dict()
         self._initialized = False
@@ -1127,7 +1138,7 @@ class RadiativeModel(object):
         self.set_band(**kwargs)
         # self.pretty_print_params()
         self._reload()
-        
+
     def set_defaults(self,**kwargs):
         # temperatures
         self.params['tsky'] = kwargs.pop('tsky',2.73)
@@ -1136,7 +1147,7 @@ class RadiativeModel(object):
         self.params['tvcs2'] = kwargs.pop('tvcs2',130.0)
         self.params['t4k'] = kwargs.pop('t4k',5.0)
         self.params['atmos'] = kwargs.pop('atmos',True)
-        
+
         # detector quantum efficiency
         self.params['eta'] = kwargs.pop('eta',0.4)
         self.params['det_floor'] = kwargs.pop('det_floor',0.01)
@@ -1146,30 +1157,30 @@ class RadiativeModel(object):
         # subk properties
         self.params['esubk'] = kwargs.pop('esubk',0.25)
         self.params['tsubk'] = kwargs.pop('tsubk',0.3)
-        
+
         self.params['t_hp_min'] = kwargs.pop('t_hp_min',1e-5)
         self.params['t_sh_min'] = kwargs.pop('t_sh_min',1e-5)
         self.params['a_hp_min'] = kwargs.pop('a_hp_min',0.01)
         self.params['a_sh_min'] = kwargs.pop('a_sh_min',1e-5)
         self.params['t_ny_min'] = kwargs.pop('t_ny_min',1e-8)
-        
+
         # window properties
         self.params['window'] = kwargs.pop('window',True)
         # emissivity at center freq
         # self.params['window_emis'] = kwargs.pop('window_emis',1e-3)
         self.params['window_abs_min'] = kwargs.pop('window_abs_min',1e-3)
         # self.params['window_thickness'] = kwargs.pop('window_thickness',3.175)
-        
+
         # temperature
         self.params['twindow'] = kwargs.pop('window_temp',
                                             kwargs.pop('twin',273.0))
         # emissivity index
         self.params['window_beta'] = kwargs.pop('window_beta',2)
-        
+
         # stop properties
         self.params['t2k'] = kwargs.pop('t2k',kwargs.pop('t_stop',2.0))
         self.params['spill_frac'] = kwargs.pop('spill_frac',0.1)
-        
+
         # nylon conductivity
         # self.params['g_nylon'] = kwargs.pop('g_nylon',3e-5) # W/K
         self.params['vcs1_nylon_dt'] = kwargs.pop('vcs1_nylon_dt',30) # K
@@ -1178,15 +1189,15 @@ class RadiativeModel(object):
 
         # aperture diameter
         self.params['aperture'] = kwargs.pop('aperture',0.3) # m
-        
+
         # directories and files
         thisdir = os.path.dirname(os.path.realpath(__file__))
         datdir = kwargs.pop('datdir', os.path.join(thisdir, 'rad_data'))
         self.params['datdir'] = datdir
-        
+
         figdir = kwargs.pop('figdir', os.path.join(thisdir, 'figs'))
         self.params['figdir'] = figdir
-        
+
         # atmfile = kwargs.pop('atmfile', 'amatm.dat')
         atmfile = kwargs.pop('atmfile', 'am_30km.dat')
         if not os.path.exists(atmfile):
@@ -1196,10 +1207,10 @@ class RadiativeModel(object):
         if not os.path.exists(spectfile):
             spectfile = os.path.join(datdir, spectfile)
         self.params['spectfile'] = spectfile
-        
+
     def update_params(self,*args,**kwargs):
         self.params.update(*args,**kwargs)
-    
+
     def get_param(self,param,default=None):
         if param not in self.params and default is not None:
             self.params[param] = default
@@ -1207,7 +1218,7 @@ class RadiativeModel(object):
             self.params[param] = default
         if param not in self.params: return None
         return self.params[param]
-    
+
     def load_profile(self,profile):
         tsky,esky,tvcs2,tvcs1,t4k,atmos = np.loadtxt(profile,unpack=True)
         self.params['tsky'] = tsky[0]
@@ -1216,23 +1227,24 @@ class RadiativeModel(object):
         self.params['tvcs1'] = tvcs1[0]
         self.params['t4k'] = t4k[0]
         self.params['atmos'] = bool(atmos[0])
-        
+
     def print_params(self):
         for k in sorted(self.params.keys()):
             print '%s = %r' % (k,self.params[k])
-    
+
     def pretty_print_params(self):
         def tprint(v):
             return uprint(v, unit='K', format='%8.3f')
         print '%-20s: %s' % ('Sky temp', tprint(self.params['tsky']))
         print '%-20s: %8.3f' % ('Sky emissivity', self.params['esky'])
         print '%-20s: %s' % ('Atmosphere?', self.params['atmos'])
+        print '%-20s: %s' % ('Window temp', tprint(self.params['twindow']))
         print '%-20s: %s' % ('VCS2 temp', tprint(self.params['tvcs2']))
         print '%-20s: %s' % ('VCS1 temp', tprint(self.params['tvcs1']))
         print '%-20s: %s' % ('4K temp', tprint(self.params['t4k']))
         print '%-20s: %s' % ('2K temp', tprint(self.params['t2k']))
         print '%-20s: %8.3f' % ('Stop throughput', self.params['spill_frac'])
-        
+
     def load_filters(self,norm=True):
         t_hp_min = self.params['t_hp_min']
         t_sh_min = self.params['t_sh_min']
@@ -1241,21 +1253,24 @@ class RadiativeModel(object):
         t_ny_min = self.params['t_ny_min']
         fopts = dict(wavelength=self.wavelength)
         self.filters = {
-            'c8-c8': ShaderFilter('c8-c8','spider_filters_c8-c8.txt',
+            'c8-c8': MylarShader('c8-c8','spider_filters_c8-c8.txt',
+                                 t_min=t_sh_min, a_min=a_sh_min,
+                                 norm=norm, **fopts),
+            'c8-c12': MylarShader('c8-c12','spider_filters_c8-c12.txt',
                                   t_min=t_sh_min, a_min=a_sh_min,
                                   norm=norm, **fopts),
-            'c12-c16': ShaderFilter('c12-c16','spider_filters_c12-c16.txt',
-                                    t_min=t_sh_min, a_min=a_sh_min,
-                                    norm=norm, **fopts),
-            'c15': ShaderFilter('c15','spider_filters_c15.txt',
-                                t_min=t_sh_min, a_min=a_sh_min,
-                                norm=norm, **fopts),
-            'c16-c25': ShaderFilter('c16-c25','spider_filters_c16-c25.txt',
-                                    t_min=t_sh_min, a_min=a_sh_min,
-                                    norm=norm, **fopts),
-            'c30': ShaderFilter('c30','spider_filters_c30.txt',
-                                t_min=t_sh_min, a_min=a_sh_min,
-                                norm=norm, **fopts),
+            'c12-c16': MylarShader('c12-c16','spider_filters_c12-c16.txt',
+                                   t_min=t_sh_min, a_min=a_sh_min,
+                                   norm=norm, **fopts),
+            'c15': PolyShader('c15','spider_filters_c15.txt',
+                              t_min=t_sh_min, a_min=a_sh_min,
+                              norm=norm, **fopts),
+            'c16-c25': MylarShader('c16-c25','spider_filters_c16-c25.txt',
+                                   t_min=t_sh_min, a_min=a_sh_min,
+                                   norm=norm, **fopts),
+            'c30': PolyShader('c30','spider_filters_c30.txt',
+                              t_min=t_sh_min, a_min=a_sh_min,
+                              norm=norm, **fopts),
             '12icm': HotPressFilter('12icm',
                                     'spider_filters_w1078_12icm.txt',
                                     t_min=t_hp_min, a_min=a_hp_min,
@@ -1303,6 +1318,10 @@ class RadiativeModel(object):
                                       width=0, amp=1.0, thickness=3.175,
                                       a_min=self.params['window_abs_min'],
                                       **fopts),
+            'ptfe_window': PTFEFilter('window', fcent=self.frequency.max(),
+                                      width=0, amp=1.0, thickness=3.175,
+                                      a_min=self.params['window_abs_min'],
+                                      **fopts),
             'poly_window_arc150': PolyFilter('window', fcent=self.frequency.max(),
                                              width=0, amp=1.0, thickness=3.175,
                                              a_min=self.params['window_abs_min'],
@@ -1327,7 +1346,7 @@ class RadiativeModel(object):
             }
         # print 'Available filters: %r' % sorted(self.filters.keys())
         return self.filters
-    
+
     def load_atm(self,filename=None,fmax=1000,emax=0.1):
         filename = self.get_param('atmfile',filename)
         data = np.loadtxt(filename,unpack=True,comments='#')
@@ -1355,7 +1374,7 @@ class RadiativeModel(object):
         self.t_atmos = np.interp(self.frequency,f_atmos,np.exp(-o_atmos))
         self.bb_atmos = bb
         # return self.Inu_atmos
-    
+
     def load_spectrum(self):
         """
         Simple top-hat band about center frequency
@@ -1369,33 +1388,33 @@ class RadiativeModel(object):
         t[f>fcent*(1+bw/2)] = flr
         self.spectrum = t
         return self.spectrum
-        
+
     def set_band(self,**kwargs):
         res = self.get_param('res',kwargs.pop('res',1000))
         fcent = self.get_param('fcent',kwargs.pop('fcent',148))
         bw = self.get_param('bw',kwargs.pop('bw',0.25))
         bandlo = self.get_param('bandlo',kwargs.pop('bandlo',3))
         bandhi = self.get_param('bandhi',kwargs.pop('bandhi',1000))
-        
+
         self.wavelength = np.logspace(4,0,res) # wavelength in um
         self.frequency = 300.0/(self.wavelength/1000.0) # frequency in GHz
-        
-        self.id_band = np.where((self.frequency>bandlo) * 
+
+        self.id_band = np.where((self.frequency>bandlo) *
                                  (self.frequency<bandhi))[0]
-        
+
         blo = np.max([fcent*(1.0-bw/2),1.0])
         bhi = fcent*(1.0+bw/2)
-        self.id_band2 = np.where((self.frequency>blo) * 
+        self.id_band2 = np.where((self.frequency>blo) *
                                   (self.frequency<bhi))[0]
-        
+
         if self._initialized: self._reload()
-        
+
     def _reload(self):
         self.load_atm()
         self.load_spectrum()
         self.load_filters()
         if not self._initialized: self._initialized = True
-        
+
     def run(self, tag=None, plot=False, interactive=False, summary=False,
             display=True,
             filter_stack={'window': ['poly_window'],
@@ -1405,20 +1424,20 @@ class RadiativeModel(object):
                           '2k':['7icm'],
                           },
             filter_offsets={}, **kwargs):
-        
+
         # self.set_defaults(**kwargs)
         self.params.update(kwargs)
-        
+
         # abscissa and conversion factors
         freq = self.frequency
         wlen = self.wavelength
-        
+
         # aperture area
         area = np.pi*(self.params['aperture']/2.)**2
-        
+
         opts = dict(wavelength=wlen, frequency=freq,
                     area=area, verbose=self.verbose)
-        
+
         # the sky
         Rsky = RadiativeSurface('Sky', trans=0.0, abs=self.params['esky'],
                                 bb=blackbody(freq,self.params['tsky']),
@@ -1429,7 +1448,7 @@ class RadiativeModel(object):
                                       abs=self.e_atmos, bb=self.bb_atmos,
                                       **opts)
             surfaces.append(Ratmos)
-        
+
         # assemble the filter stages into RadiativeStack objects
         def make_stack(stage,outer_ref_load=False):
             T = self.params['t%s'%stage]
@@ -1446,15 +1465,15 @@ class RadiativeModel(object):
                 S = FilterSurface('%s %s%s' % (stage.upper(), f, tag),
                                   self.filters[f], bb=bb, **opts)
                 stack.append(S)
-            return RadiativeStack(stage.upper(), stack, 
+            return RadiativeStack(stage.upper(), stack,
                                   outer_ref_load=outer_ref_load, **opts)
-        
+
         # window
         if self.params['window']:
             Rwin = make_stack('window')
             surfaces.append(Rwin)
-        
-        Rvcs2 = make_stack('vcs2', outer_ref_load=True if 
+
+        Rvcs2 = make_stack('vcs2', outer_ref_load=True if
                            len(filter_stack['window'])==1 else False)
         Rvcs1 = make_stack('vcs1')
         R4k = make_stack('4k')
@@ -1467,12 +1486,12 @@ class RadiativeModel(object):
                                  abs=spill, **opts)
                 ]
         surfaces += [Rvcs2, Rvcs1, R4k, R2k]
-        
+
         # sub-K loading (use trans=1 to pass through to detector,
         # but bb=0 to ignore loading onto detector)
         Rsubk = RadiativeSurface('sub-K', abs=self.params['esubk'], **opts)
         surfaces.append(Rsubk)
-        
+
         # detector loading with bandpass
         eta = self.params['eta']
         t = self.spectrum # detector FTS spectrum
@@ -1484,20 +1503,20 @@ class RadiativeModel(object):
                                 antenna=True, band=self.id_band2,
                                 **opts)
         surfaces.append(Rdet)
-        
+
         # assemble the whole stack and propagate the sky through it
         self.tag = tag
         self.stack = RadiativeStack('TOTAL', surfaces, incident=Rsky,
                                     **opts)
-        
+
         # print results
         self.results(summary=summary,display=display)
-        
+
         # plot results
         if plot:
             self.plot(tag=tag, interactive=interactive)
         return self.stack
-    
+
     def results(self, summary=False, display=True):
         if display:
             print '*'*80
@@ -1507,21 +1526,21 @@ class RadiativeModel(object):
             self.pretty_print_params()
         self.stack.results(display_this=False, display=display,
                            summary=summary)
-    
+
     def plot(self, tag=None, interactive=False, **kwargs):
         if not interactive:
             import sys
             if 'matplotlib.backends' not in sys.modules:
                 from matplotlib import use
                 use('agg')
-        
+
         figdir = self.params['figdir']
         prefix = '%s/' % figdir
         if tag:
             figdir = os.path.join(figdir,tag)
             prefix = '%s/%s_' % (figdir, tag)
         if not os.path.exists(figdir): os.mkdir(figdir)
-        
+
         for S in self.stack.surfaces:
             if S.name == 'Det':
                 pargs = dict(
@@ -1534,20 +1553,18 @@ class RadiativeModel(object):
                     xscale='log',
                     )
             pargs['prefix'] = prefix
-            
+
             S.plot_tra(ylim=[1e-3,1.1], **pargs)
             S.plot_spect(ylim=[1e-8,1.1], **pargs)
             S.plot_trans(ylim=[1e-8,1.1], **pargs)
             S.plot_abs(ylim=[1e-8,1.1], **pargs)
             S.plot_ref(ylim=[1e-8,1.1], **pargs)
 
-def filter_load(model_obj, t2k, t4k, tvcs1, tvcs2, twin, n_inserts, **params):
-    stack = model_obj.run(display=False, plot=False, twin=twin,
+def filter_load(model_obj, t2k, t4k, tvcs1, tvcs2, twin, n_inserts,
+                verbose=False, **params):
+    stack = model_obj.run(display=verbose, plot=False, twin=twin,
                           tvcs2=tvcs2, tvcs1=tvcs1, t4k=t4k, t2k=t2k,
                           **params)
-    # print '*'*20
-    # model_obj.pretty_print_params()
-    # print '*'*20
     surfs = stack.surfdict
     window_VCS2 = surfs['vcs2'].iload_int * n_inserts
     if np.isnan(window_VCS2):
@@ -1684,10 +1701,28 @@ models = {
         'filter_offsets': {},
         },
     'ar_nonylon_windowshader': {
+        'filter_stack': {'window': ['poly_window_arc150','c15'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_nonylon_windowshader2': {
         'filter_stack': {'window': ['poly_window_arc150','c15','c30'],
                          'vcs2':['c15','c15','c30','c30'],
                          'vcs1':['c15','c30','c30','12icm'],
                          '4k':['10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {},
+        },
+    'ar_nonylon_4kshader': {
+        'filter_stack': {'window': ['poly_window_arc150'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['c30','10icm_arc150','nylon_arc150'],
                          '2k':['6icm'],
                          },
         'filter_offsets': {},
@@ -1727,7 +1762,7 @@ def main(model_class=RadiativeModel):
     P = ap.ArgumentParser(add_help=True)
     P.add_argument('model',nargs='?',default='default',type=str,
                    choices=models.keys(), metavar='model',
-                   help='Preset model name. Choices are: %s' % 
+                   help='Preset model name. Choices are: %s' %
                    ', '.join(sorted(models.keys())))
     P.add_argument('-i','--interactive',default=False,
                    action='store_true',help='show plots')
@@ -1757,38 +1792,40 @@ def main(model_class=RadiativeModel):
                    help='VCS1 temperature')
     P.add_argument('--tvcs2',action='store',type=float,default=130,
                    help='VCS2 temperature')
+    P.add_argument('--twindow', action='store', type=float, default=273,
+                   help='Window temperature')
     args = P.parse_args()
-    
+
     if not args.plot: args.interactive = False
-    
+
     opts = dict(verbose=args.verbose, fcent=94 if args.f90 else 148,
                 atmos=not args.no_atm, window=not args.no_window,
-                tvcs2=args.tvcs2, tvcs1=args.tvcs1)
-    
+                tvcs2=args.tvcs2, tvcs1=args.tvcs1, twin=args.twindow)
+
     if args.ground:
         opts['atmfile'] = 'am_01km.dat'
-    
+
     if args.tload is not None:
         opts['tsky'] = args.tload
-    
+
     if args.model not in models:
         raise ValueError,'unrecognized model ID %s' % args.model
-    
+
     if args.final:
         args.summary = False
         display = False
     else:
         display = True
-    
+
     model = models[args.model]
     if args.f90:
         model = model150to90(model)
-    
+
     tag = ('90ghz_' if args.f90 else '150ghz_') + args.model
     if args.no_window: tag += '_nowin'
     if args.ground: tag += '_gnd'
     if args.tload is not None: tag += '_%dk' % int(args.tload)
-    
+
     M = model_class(**opts)
     stack = M.run(tag=tag, plot=args.plot, interactive=args.interactive,
                   summary=args.summary, display=display, **model)
@@ -1797,5 +1834,5 @@ def main(model_class=RadiativeModel):
         stack.surfaces[-1].results()
 
 if __name__ == "__main__":
-    
+
     main(model_class=RadiativeModel)
