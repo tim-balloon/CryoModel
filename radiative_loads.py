@@ -18,7 +18,7 @@ sigma = 5.6704E-12   #[J/s*cm^2*K^4]
 
 
 def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
-	p_ins=1e-3, e_Al=0.15, alpha=0.15, beta=4.0e-3, config='theo', insNum = 6.0):
+        p_ins1=1e-3, p_ins2=1e-3, e_Al=0.15, alpha=0.15, beta=4.0e-3, config='theo', insNum = 6.0):
 	'''returns the radiative loads INCLUDING all conductive and gas effects in MLI
 	MLI is only used on VCS1 and VCS2 as gas loading would make MT MLI ineffective'''
 	
@@ -33,8 +33,8 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 	N1_s = N1 / t1
 	N2_s = N2 / t2
 	
-	Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
-	Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
+	Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
+	Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
 	Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
 	RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
 	

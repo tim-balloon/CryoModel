@@ -14,7 +14,8 @@ from conductive_loads import *
 from gas_props import *
 import argparse
 
-from radmodel import *
+from radmodel_new2 import *
+# from radmodel import *
 from wiring import wiring_load
 
 def find_equilibrium(args):
@@ -57,7 +58,7 @@ def find_equilibrium(args):
 	else:
 		config = 'theo'
 		insNum = 6
-		numLiters = 1000.0
+		numLiters = 1100.0
 	
 	#place holders for filter loads
 	#window_MT =  insNum*0.05 #50 mW estimate
@@ -74,7 +75,7 @@ def find_equilibrium(args):
 	if args.mylarWindow:
 	        radmodel_params = models['ar_mylarwindow_nonylon']
         elif args.shaderWindow:
-                radmodel_params = models['ar_nonylon_windowshader']
+                radmodel_params = models['ar_nonylon_windowshader2']
 	else:
 	        radmodel_params = models['ar_nonylon']
 	if args.ground:
@@ -85,6 +86,7 @@ def find_equilibrium(args):
 	else:
 		opts = {}
 	M = RadiativeModel(**opts)
+        print 'T_Shell', T_Shell
         
 	#Counter and maximum number of iterations
 	n = 1
@@ -115,7 +117,7 @@ def find_equilibrium(args):
 		#Radiative loads and MLI conductivity estimates
 		if args.windowsOpen:	
 			inband, window_MT, window_VCS1, window_VCS2 = \
-				filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, 273,
+				filter_load(M, T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 				insNum, **radmodel_params)
 		else:
 			inband, window_MT, window_VCS1, window_VCS2 = np.zeros(4)
@@ -125,8 +127,11 @@ def find_equilibrium(args):
 		if args.keller:
 			
 			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = \
-				mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
-					p_ins=1e-4, e_Al=0.15, alpha=0.15, beta=4.0e-3, config=config, insNum = insNum)
+				mli_rad_keller(
+                                        T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, 
+					p_ins1=args.pins1, p_ins2=args.pins2,
+                                        e_Al=0.15, alpha=0.15, beta=4.0e-3,
+                                        config=config, insNum=insNum)
 			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
 			#Rad_VCS2 *= 1.5
 					
@@ -247,6 +252,8 @@ def find_equilibrium(args):
 			print('mdot (g/s): %s, Holdtime (days): %s' % (mdot, holdtime(mdot, numLiters = numLiters)))
 			print('SLPM (from MT/l): %s' % (mdot2SLPM(mdot)))
 			print('SLPM (from MTLoad/l): %s' % (mdot2SLPM(mdot2)))
+                        print('MT power: %s' % (MT))
+                        print('MTLoad power %s' % (MTLoad))
 			#print summary
 			print(' Stage |Temperature |')
 			print(' OCS   | %1.2f K |' % T_VCS2)
@@ -300,6 +307,10 @@ if __name__ == '__main__':
 	parser.add_argument('-VCS1LLperc', dest = 'VCS1LLperc', action = 'store', type = float, default= 0.0, help='Percent of area light leak load on VCS1')
 	parser.add_argument('-VVTemp', dest = 'VVTemp', action = 'store', type = float, default= 248.0, help='Vacuum vessel wall temperature')
 	parser.add_argument('-ground', dest = 'ground', action = 'store_true', help='Ground loading?')
+        parser.add_argument('-pins1', dest='pins1', action='store', type=float,
+                            default=1e-4, help='VCS1 interstitial pressure')
+        parser.add_argument('-pins2', dest='pins2', action='store', type=float,
+                            default=1e-4, help='VCS1 interstitial pressure')
 
 	args = parser.parse_args()
 	

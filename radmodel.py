@@ -44,8 +44,13 @@ def isarr(v):
         return True
     return False
 
-def uprint(v, unit='W', format='%12.6f', cd=False):
-    if not v: return '%s  %s' % (format, unit) % v
+def uprint(v, unit='W', fmt='%12.6f', cd=False):
+    if v is None:
+        return '--- %s' % (unit)
+
+    if v == 0:
+        return '%s %s' % (fmt, unit) % (v)
+
     udict = {-24  : 'y',  # yocto
               -21 : 'z', # zepto
               -18 : 'a', # atto
@@ -53,7 +58,7 @@ def uprint(v, unit='W', format='%12.6f', cd=False):
               -12 : 'p', # pico
               -9  : 'n', # nano
               -6  : 'u', # micro
-              -3  : 'm', # mili
+              -3  : 'm', # milli
               0   : ' ', # --
               3   : 'k', # kilo
               6   : 'M', # mega
@@ -78,7 +83,10 @@ def uprint(v, unit='W', format='%12.6f', cd=False):
         idx = ((lv-vlist)<0).argmax()-1
     scale = np.power(10.,-vlist[idx])
     prefix = udict[vlist[idx]]
-    return '%s %s%s' % (format, prefix, unit) % (v*scale)
+    return '%s %s%s' % (fmt, prefix, unit) % (v*scale)
+
+def tprint(v):
+    return uprint(v, unit='K', fmt='%8.3f')
 
 def int_tabulated(y, x=None, p=5, n=None):
     # similar to IDL int_tabulate...
@@ -98,13 +106,19 @@ def int_tabulated(y, x=None, p=5, n=None):
 
 def integrate(y, x=None, idx=None):
     if np.isscalar(y):
-        if not isarr(x): return 0.0
-        y = y*np.ones_like(x)
-    if x is None: x = np.arange(len(y))
+        if not isarr(x):
+            return 0.0
+        y = y * np.ones_like(x)
+    if x is None:
+        x = np.arange(len(y))
     if idx is not None:
         y = y[idx]
         x = x[idx]
-    return np.trapz(y,x=x)
+    idx1 = np.isfinite(y)
+    if np.any(idx1):
+        y = y[idx1]
+        x = x[idx1]
+    return np.trapz(y, x=x)
     # n = len(x)
     # while n % 4 != 0: n += 1
     # ix = np.linspace(x.min(),x.max(),n)
@@ -156,14 +170,14 @@ class FilterModel(object):
                                      a_min=a_min, a_max=a_max)
 
             # add AR coat absorption
-            if isinstance(arc,FilterModel):
+            if isinstance(arc, FilterModel):
                 a = self.abs
                 b = arc.abs
-                self.abs = 1 - (1-a)*((1-b)**2)
+                self.abs = 1. - (1-a)*((1-b)**2)
 
             # correct transmission if absorption is high
-            self.trans = np.where(self.trans + self.abs > 1,
-                                  1 - self.abs, self.trans)
+            cond = (self.trans + self.abs) >= 1.
+            self.trans = np.where(cond, 1. - self.abs, self.trans)
 
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self.name)
@@ -251,6 +265,10 @@ class FilterModel(object):
             t = np.interp(wavelength,self.wavelength_raw[idx],
                           self.trans_raw[idx])
         else: t = self.trans_raw
+        if t_min is None:
+            t_min = 0
+        if t_max is None:
+            t_max = 1 - 1e-3
         t = threshold(t,low=t_min,high=t_max)
         return t
 
@@ -260,6 +278,10 @@ class FilterModel(object):
             a = np.interp(wavelength,self.abs_wavelength_raw[idx],
                           self.abs_raw[idx])
         else: a = self.abs_raw
+        if a_min is None:
+            a_min = 0
+        if a_max is None:
+            a_max = 1 - 1e-8
         a = threshold(a,low=a_min,high=a_max)
         return a
 
@@ -289,14 +311,19 @@ class FilterModel(object):
     def get_ref(self,wavelength=None,t_min=0,t_max=1,
                 a_min=0,a_max=1):
         if self.type == 'reflector':
-            return 1.0 - self.get_trans(wavelength,t_min,t_max)
+            t = self.get_trans(wavelength,t_min,t_max)
         elif self.type == 'partial':
-            return 1.0 - self.get_trans(wavelength,t_min,t_max) \
-                - self.get_abs(wavelength,a_min,a_max)
+            t = self.get_trans(wavelength,t_min,t_max) \
+                 + self.get_abs(wavelength,a_min,a_max)
         elif self.type == 'absorber':
             return 0.0
         else:
             raise KeyError,'unknown filter type %s' % self.type
+        r = 1.0 - t
+        s = t + r
+        r[s > 1 - 1e-16] -= 1e-16
+        r[r < 0] = 0
+        return r
 
 class PolyFilter(FilterModel):
     def __init__(self, name, filename=None, thickness=1, **kwargs):
@@ -404,10 +431,11 @@ class NylonFilter(FilterModel):
 
 class Cirlex(FilterModel):
 
-    def __init__(self,frequency):
+    def __init__(self,frequency, t_min=None, t_max=None):
         self.name = 'cirlex'
         self.frequency = frequency
         self.type = 'absorber'
+        self.trans = self.get_trans(t_min=t_min, t_max=t_max)
 
     def get_trans(self,wavelength=None,t_min=None,t_max=None):
         if not hasattr(self,'trans'):
@@ -772,6 +800,7 @@ class RadiativeSurface(object):
             if isarr(v):
                 if ylim is not None:
                     v = parg(v, min(ylim))
+                _, v = np.broadcast_arrays(x, v)
                 if fmt is not None:
                     ax.plot(x,v,fmt,label=lab,**kw)
                 else:
@@ -1150,7 +1179,7 @@ class RadiativeModel(object):
 
         # detector quantum efficiency
         self.params['eta'] = kwargs.pop('eta',0.4)
-        self.params['det_floor'] = kwargs.pop('det_floor',0.01)
+        self.params['det_floor'] = kwargs.pop('det_floor',0.001)
         self.params['fcent'] = kwargs.pop('fcent',148)
         self.params['bw'] = kwargs.pop('bw',0.25)
 
@@ -1232,18 +1261,30 @@ class RadiativeModel(object):
         for k in sorted(self.params.keys()):
             print '%s = %r' % (k,self.params[k])
 
-    def pretty_print_params(self):
-        def tprint(v):
-            return uprint(v, unit='K', format='%8.3f')
-        print '%-20s: %s' % ('Sky temp', tprint(self.params['tsky']))
-        print '%-20s: %8.3f' % ('Sky emissivity', self.params['esky'])
-        print '%-20s: %s' % ('Atmosphere?', self.params['atmos'])
-        print '%-20s: %s' % ('Window temp', tprint(self.params['twindow']))
-        print '%-20s: %s' % ('VCS2 temp', tprint(self.params['tvcs2']))
-        print '%-20s: %s' % ('VCS1 temp', tprint(self.params['tvcs1']))
-        print '%-20s: %s' % ('4K temp', tprint(self.params['t4k']))
-        print '%-20s: %s' % ('2K temp', tprint(self.params['t2k']))
-        print '%-20s: %8.3f' % ('Stop throughput', self.params['spill_frac'])
+    def pretty_print_params(self, filename=None, mode='w'):
+        if filename is None:
+            import sys
+            f = sys.stdout
+        elif isinstance(filename, file):
+            f = filename
+        else:
+            f = open(filename, mode)
+
+        def write(line):
+            f.write(line + '\n')
+
+        write('%-20s: %s' % ('Sky temp', tprint(self.params['tsky'])))
+        write('%-20s: %8.3f' % ('Sky emissivity', self.params['esky']))
+        write('%-20s: %s' % ('Atmosphere?', self.params['atmos']))
+        write('%-20s: %s' % ('Window temp', tprint(self.params['twindow'])))
+        write('%-20s: %s' % ('VCS2 temp', tprint(self.params['tvcs2'])))
+        write('%-20s: %s' % ('VCS1 temp', tprint(self.params['tvcs1'])))
+        write('%-20s: %s' % ('4K temp', tprint(self.params['t4k'])))
+        write('%-20s: %s' % ('2K temp', tprint(self.params['t2k'])))
+        write('%-20s: %8.3f' % ('Stop throughput', self.params['spill_frac']))
+
+        if filename is not None and not isinstance(filename, file):
+            f.close()
 
     def load_filters(self,norm=True):
         t_hp_min = self.params['t_hp_min']
@@ -1341,13 +1382,13 @@ class RadiativeModel(object):
                                         arc=ZitexFilter('ar', thickness=0.381,
                                                         **fopts),
                                         **fopts),
-            'cirlex': Cirlex(frequency=self.frequency),
-            'quartz': Quartz(frequency=self.frequency),
+            'cirlex': Cirlex(frequency=self.frequency, t_min=t_ny_min),
+            'quartz': Quartz(frequency=self.frequency, t_min=t_ny_min),
             }
         # print 'Available filters: %r' % sorted(self.filters.keys())
         return self.filters
 
-    def load_atm(self,filename=None,fmax=1000,emax=0.1):
+    def load_atm(self, filename=None, fmax=1000, emax=0.1):
         filename = self.get_param('atmfile',filename)
         data = np.loadtxt(filename,unpack=True,comments='#')
         xout = data[0]
@@ -1371,7 +1412,9 @@ class RadiativeModel(object):
             self.frequency>fmax, emax*bb,
             np.interp(self.frequency,f_atmos,Inu_atmos))
         self.e_atmos = Inu_atmos/bb
-        self.t_atmos = np.interp(self.frequency,f_atmos,np.exp(-o_atmos))
+        self.t_atmos = np.where(
+            self.frequency>fmax, 1-emax,
+            np.interp(self.frequency,f_atmos,np.exp(-o_atmos)))
         self.bb_atmos = bb
         # return self.Inu_atmos
 
@@ -1390,13 +1433,13 @@ class RadiativeModel(object):
         return self.spectrum
 
     def set_band(self,**kwargs):
-        res = self.get_param('res',kwargs.pop('res',1000))
-        fcent = self.get_param('fcent',kwargs.pop('fcent',148))
-        bw = self.get_param('bw',kwargs.pop('bw',0.25))
-        bandlo = self.get_param('bandlo',kwargs.pop('bandlo',3))
-        bandhi = self.get_param('bandhi',kwargs.pop('bandhi',1000))
+        res = self.get_param('res',kwargs.pop('res', 1000))
+        fcent = self.get_param('fcent',kwargs.pop('fcent', 150))
+        bw = self.get_param('bw',kwargs.pop('bw', 0.25))
+        bandlo = self.get_param('bandlo',kwargs.pop('bandlo', 3))
+        bandhi = self.get_param('bandhi',kwargs.pop('bandhi', 3e5))
 
-        self.wavelength = np.logspace(4,0,res) # wavelength in um
+        self.wavelength = np.logspace(5, 0, res) # wavelength in um
         self.frequency = 300.0/(self.wavelength/1000.0) # frequency in GHz
 
         self.id_band = np.where((self.frequency>bandlo) *
@@ -1407,7 +1450,8 @@ class RadiativeModel(object):
         self.id_band2 = np.where((self.frequency>blo) *
                                   (self.frequency<bhi))[0]
 
-        if self._initialized: self._reload()
+        if self._initialized:
+            self.load_spectrum()
 
     def _reload(self):
         self.load_atm()
@@ -1416,7 +1460,7 @@ class RadiativeModel(object):
         if not self._initialized: self._initialized = True
 
     def run(self, tag=None, plot=False, interactive=False, summary=False,
-            display=True,
+            display=False,
             filter_stack={'window': ['poly_window'],
                           'vcs2':['c8-c8','c8-c8','c8-c8','c12-c16'],
                           'vcs1':['c12-c16','c16-c25','c16-c25','12icm'],
@@ -1579,8 +1623,9 @@ def filter_load(model_obj, t2k, t4k, tvcs1, tvcs2, twin, n_inserts,
     return inband, window_MT, window_VCS1, window_VCS2
 
 def model150to90(model):
-    fstack = model['filter_stack'].copy()
-    foff = model['filter_offsets'].copy()
+    from copy import deepcopy
+    fstack = deepcopy(model['filter_stack'])
+    foff = deepcopy(model['filter_offsets'])
     for s in fstack:
         for idx,ss in enumerate(fstack[s]):
             ss = ss.replace('arc150','arc90')
@@ -1718,6 +1763,35 @@ models = {
                          },
         'filter_offsets': {},
         },
+    'ar_nonylon_windowshader2_hothwp': {
+        'filter_stack': {'window': ['poly_window_arc150','c15','c30'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm'],
+                         '4k':['cirlex', 'cirlex', '10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'4k': {'cirlex': 30}},
+        },
+    'ar_nylon_windowshader2_hothwp': {
+        'filter_stack': {'window': ['poly_window_arc150','c15','c30'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm', 'nylon_arc150'],
+                         '4k':['cirlex', 'cirlex', '10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {'4k': {'cirlex': 30}},
+        },
+    'ar_hotnylon_windowshader2_hothwp': {
+        'filter_stack': {'window': ['poly_window_arc150','c15','c30'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30','12icm', 'nylon_arc150'],
+                         '4k':['cirlex', 'cirlex', '10icm_arc150','nylon_arc150'],
+                         '2k':['6icm'],
+                         },
+        'filter_offsets': {
+            'vcs1': {'nylon_arc150': 30},
+            '4k': {'cirlex': 30}},
+        },
     'ar_nonylon_4kshader': {
         'filter_stack': {'window': ['poly_window_arc150'],
                          'vcs2':['c15','c15','c30','c30'],
@@ -1768,6 +1842,10 @@ def main(model_class=RadiativeModel):
                    action='store_true',help='show plots')
     P.add_argument('-p','--plot',default=False,
                    action='store_true',help='make plots')
+    P.add_argument('--figdir', default='figs',
+                   action='store', help='directory for storing plots')
+    P.add_argument('-r', '--res', default=1000, type=int,
+                   action='store', help='Number of frequency bins')
     P.add_argument('-s','--summary',default=False,
                    action='store_true',help='print short summary')
     P.add_argument('-f','--final',default=False,
@@ -1800,7 +1878,8 @@ def main(model_class=RadiativeModel):
 
     opts = dict(verbose=args.verbose, fcent=94 if args.f90 else 148,
                 atmos=not args.no_atm, window=not args.no_window,
-                tvcs2=args.tvcs2, tvcs1=args.tvcs1, twin=args.twindow)
+                tvcs2=args.tvcs2, tvcs1=args.tvcs1, twin=args.twindow,
+                res=args.res, figdir=args.figdir)
 
     if args.ground:
         opts['atmfile'] = 'am_01km.dat'
