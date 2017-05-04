@@ -90,15 +90,24 @@ def MLIEmiss(Tc, Th, N, alpha, beta):
 	return emissivities
 	
 def rad_load(T_SFT, T_MT, T_VCS1,T_VCS2,T_Shell, e_Al=0.15, alpha=0.15, beta=4.0e-3, config = 'theo', insNum = 6.0):
-	N2 = 0
+	N1 = 2 #MLI layers around SFT
+        N2 = 0
 	N3 = 16
 	N4 = 52
 		
 	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
 	
 	#Radiative heat fluxess
-	Rad_SFTtoMT = sigma*e_Al*SFT_Area/2*(T_MT**4-T_SFT**4)
-	RadSFTtoVCS1 = sigma*e_Al*SFT_Area/2*(T_VCS1**4-T_SFT**4)
+        if config == 'lloro':
+                RadSFTtoVCS1 = sigma*SFT_Area/2*(T_VCS1**4-T_SFT**4)/sum(1./effectEmiss(np.hstack((e_Al,
+                                MLIEmiss(T_SFT,T_VCS1,N1,alpha,beta), e_Al))))
+
+                Rad_SFTtoMT = sigma*SFT_Area/2*(T_MT**4-T_SFT**4)/sum(1./effectEmiss(np.hstack((e_Al,
+                                MLIEmiss(T_SFT,T_MT,N1,alpha,beta), e_Al))))
+
+        else:
+                Rad_SFTtoMT = sigma*e_Al*SFT_Area/2*(T_MT**4-T_SFT**4)
+                RadSFTtoVCS1 = sigma*e_Al*SFT_Area/2*(T_VCS1**4-T_SFT**4)
 	
 	Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
 		MLIEmiss(T_MT,T_VCS1,N2,alpha,beta), e_Al*0.9))))
