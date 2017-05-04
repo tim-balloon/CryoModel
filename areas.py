@@ -12,7 +12,7 @@ import numpy as np
 
 def load_areas(config='theo', insNum = 6.0):
 	
-	if config =='theo' or config == 'theo2' or config == 'theo1' or config == 'theo_alt1':
+	if config =='theo' or config == 'theo2' or config == 'lloro' or config == 'theo_alt1':
 		
 		#----------------------------------------------------------------------
 		# This is a WRONG way of calculating the area of the MT.

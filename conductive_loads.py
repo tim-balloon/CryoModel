@@ -308,7 +308,7 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad4in = 6*(SFlexToVCS2+LFlexToVCS2)
 		flexCondLoad4out = -6*LFlexToVCS1
 
-	elif config == 'theo1':
+	elif config == 'lloro':
 		#vcs 1 intercept only
 		# Relevant lengths in meters
 		length = -0.03

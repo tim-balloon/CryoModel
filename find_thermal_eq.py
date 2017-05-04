@@ -47,8 +47,8 @@ def find_equilibrium(args):
 		config = 'theo2'
 		insNum = 6
 		numLiters = 1000.0
-	elif args.theo1:
-		config = 'theo1'
+	elif args.lloro:
+		config = 'lloro'
 		insNum = 6
 		numLiters = 1000.0
 	elif args.theo_alt1:
@@ -290,7 +290,7 @@ if __name__ == '__main__':
 	parser.add_argument('-ULDB2', dest='ULDB2', action='store_true', help='Run ULDB *2* model instead of Theo?')
 	parser.add_argument('-theo2', dest='theo2', action='store_true', help='Run theo model with large flexure intercept only to VCS2')
 	parser.add_argument('-theo_alt1', dest='theo_alt1', action='store_true', help='Run theo model with as built dims, but connected only to VCS1 intercept')
-	parser.add_argument('-theo1', dest='theo1', action='store_true', help='Run theo model with large flexure intercept only to VCS1')
+	parser.add_argument('-lloro', dest='lloro', action='store_true', help='Theo model with large flexure intercept only to VCS1, equivalent to lloro model')
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 0.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
