@@ -78,7 +78,7 @@ def manganin_rho(tin):
     r = np.array([34.6, 36.5, 38.8]) * awg2a(36)
     f = interp1d(t,r,'quadratic')
     return f(tin)
-    
+
 # def copper_rho(tin):
 #     t = [4.2, 77, 305]
 #     r = np.array([0.003, 0.04, 0.32])*awg2a(30)
@@ -179,10 +179,10 @@ def wire_info(material, length, gauge=None, Rtarget=None, Npins=1,
         area = awg2a(gauge)
         aol = area / length
         R = R0 * area0 / area
-        
+
     # H = 1000.0*2590.6 # enthalpy of vaporization, mJ/L
     # Tflight = 86400*30 # length of flight
-    
+
     def calc_load(tdict):
         keys = sorted(sink_points.keys(), key=lambda x: sink_points[x])
         tvec = [tdict[k.split('_')[0]] for k in keys]
@@ -326,31 +326,31 @@ def wiring_load(t_sft=1.5, t_mt=4.2, t_vcs1=30, t_vcs2=150, t_vv=300,
         return '\n'+'\n'.join('  {:10s}:  {}'.format(k, dd) for k,dd in zip(keys,d))
 
     if verbose:
-        print 'Components:',keys
-        print 'Number of wires per lead:',[Winfo[k]['N'] for k in keys]
-        print 'Number of leads:',[Winfo[k]['Npins'] for k in keys]
-        print 'Total conductors',[Winfo[k]['N']*Winfo[k]['Npins'] for k in keys]
-        print 'Wire material',[Winfo[k]['mat'] for k in keys]
-        print 'Wire gauge:',[Winfo[k]['awg'] for k in keys]
-        print 'Wire resistance',[Winfo[k]['R'] for k in keys]
-        print 'Loading per component (mW/Insert):',\
-            print_dict([mul_dict(p,1e3) for p in Pvec], keys)
-        print 'Loading per comp w/ current (mW/Insert):',\
-            print_dict([mul_dict(p,1e3) for p in Pveci], keys)
-        print 'Total loading:'
-        print '    ', mul_dict(Ptot_ins,1e3),'mW/Insert,'
-        print '    ', mul_dict(Ptot,1e3),'mW'
-        print 'Total loading w/ current:'
-        print '    ', mul_dict(Ptoti_ins,1e3),'mW/Insert,'
-        print '    ', mul_dict(Ptoti,1e3),'mW'
-        print 'Liquid loss: '
-        print '    ', Lday,'L/Insert/day,'
-        print '    ', Lins,'L/Insert/flight,'
-        print '    ', Ltot,'L/flight'
-        print 'Liquid loss w/ current: '
-        print '    ', Ldayi,'L/Insert/day,'
-        print '    ', Linsi,'L/Insert/flight,'
-        print '    ', Ltoti,'L/flight'
+        print('Components:',keys)
+        print('Number of wires per lead:',[Winfo[k]['N'] for k in keys])
+        print('Number of leads:',[Winfo[k]['Npins'] for k in keys])
+        print('Total conductors',[Winfo[k]['N']*Winfo[k]['Npins'] for k in keys])
+        print('Wire material',[Winfo[k]['mat'] for k in keys])
+        print('Wire gauge:',[Winfo[k]['awg'] for k in keys])
+        print('Wire resistance',[Winfo[k]['R'] for k in keys])
+        print('Loading per component (mW/Insert):',\
+            print_dict([mul_dict(p,1e3) for p in Pvec], keys))
+        print('Loading per comp w/ current (mW/Insert):',\
+            print_dict([mul_dict(p,1e3) for p in Pveci], keys))
+        print('Total loading:')
+        print('    ', mul_dict(Ptot_ins,1e3),'mW/Insert,')
+        print('    ', mul_dict(Ptot,1e3),'mW')
+        print('Total loading w/ current:')
+        print('    ', mul_dict(Ptoti_ins,1e3),'mW/Insert,')
+        print('    ', mul_dict(Ptoti,1e3),'mW')
+        print('Liquid loss: ')
+        print('    ', Lday,'L/Insert/day,')
+        print('    ', Lins,'L/Insert/flight,')
+        print('    ', Ltot,'L/flight')
+        print('Liquid loss w/ current: ')
+        print('    ', Ldayi,'L/Insert/day,')
+        print('    ', Linsi,'L/Insert/flight,')
+        print('    ', Ltoti,'L/flight')
 
     return Ptot
 

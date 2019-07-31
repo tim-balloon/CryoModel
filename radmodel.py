@@ -159,7 +159,7 @@ class FilterModel(object):
                                    t_min=t_min, t_max=t_max)
         if type == 'partial':
             if abs_filename is None:
-                raise ValueError,'Need filename for absorption data'
+                raise ValueError('Need filename for absorption data')
             self._load_abs_from_file(abs_filename, thickness=thickness,
                                      norm=norm)
             if a_lowf is not None:
@@ -191,7 +191,7 @@ class FilterModel(object):
             realdir = os.path.dirname(os.path.realpath(__file__))
             filename = os.path.join(realdir, 'rad_data', filename)
         if not os.path.isfile(filename):
-            raise OSError,'Cannot find filter file %s' % filename_orig
+            raise OSError('Cannot find filter file %s' % filename_orig)
 
         self.filename = filename
         self.nfilt = nfilt
@@ -211,8 +211,7 @@ class FilterModel(object):
             realdir = os.path.dirname(os.path.realpath(__file__))
             abs_filename = os.path.join(realdir, 'rad_data', abs_filename)
         if not os.path.isfile(abs_filename):
-            raise OSError,\
-                'Cannot find filter file %s' % abs_filename_orig
+            raise OSError('Cannot find filter file %s' % abs_filename_orig)
 
         f,a = np.loadtxt(abs_filename,unpack=True,skiprows=1)
         l = 1.0e4/f # microns
@@ -235,11 +234,11 @@ class FilterModel(object):
         amp = amplitude at fcent
         """
         if fcent is None:
-            raise ValueError, 'missing filter frequency scale'
+            raise ValueError('missing filter frequency scale')
         if width is None:
-            raise ValueError, 'missing filter width'
+            raise ValueError('missing filter width')
         if amp is None:
-            raise ValueError, 'missing filter transmission amplitude'
+            raise ValueError('missing filter transmission amplitude')
 
         self.fcent = fcent
         self.width = width
@@ -306,7 +305,7 @@ class FilterModel(object):
         elif self.type == 'absorber':
             return 1.0 - self.get_trans(wavelength,t_min,t_max)
         else:
-            raise KeyError,'unknown filter type %s' % self.type
+            raise KeyError('unknown filter type %s' % self.type)
 
     def get_ref(self,wavelength=None,t_min=0,t_max=1,
                 a_min=0,a_max=1):
@@ -318,7 +317,7 @@ class FilterModel(object):
         elif self.type == 'absorber':
             return 0.0
         else:
-            raise KeyError,'unknown filter type %s' % self.type
+            raise KeyError('unknown filter type %s' % self.type)
         r = 1.0 - t
         s = t + r
         r[s > 1 - 1e-16] -= 1e-16
@@ -411,8 +410,8 @@ class NylonFilter(FilterModel):
                 a = 1.5e-4
                 b = 3.3
         else:
-            if a is None: raise ValueError,'missing a'
-            if b is None: raise ValueError, 'missing b'
+            if a is None: raise ValueError('missing a')
+            if b is None: raise ValueError('missing b')
 
         self.a = a
         self.b = b
@@ -497,7 +496,7 @@ class RadiativeSurface(object):
                  antenna=False, band=None, verbose=False, **kwargs):
         self.verbose = verbose
         if self.verbose:
-            print 'Initializing surface',name
+            print('Initializing surface',name)
         self.name = name
         self.temperature = temperature
         self.frequency = frequency
@@ -528,7 +527,7 @@ class RadiativeSurface(object):
             self.verbose = self.incident.verbose
 
         if self.verbose:
-            print 'Propagating to', self.name
+            print('Propagating to', self.name)
 
         # get spectra
         tloc = self.get_trans()
@@ -691,11 +690,11 @@ class RadiativeSurface(object):
     def checkinc(self, incident, force=False):
         if incident is None:
             if self.incident is None:
-                raise ValueError,'missing incident stage! %s' % self.name
+                raise ValueError('missing incident stage! %s' % self.name)
             incident = self.incident
         if incident not in [None, False] and \
                 not isinstance(incident, RadiativeSurface):
-            raise TypeError,'incident must be an instance of RadiativeSurface'
+            raise TypeError('incident must be an instance of RadiativeSurface')
         if isinstance(self.incident,RadiativeSurface) and \
                 np.all(incident.get_itrans() == self.incident.get_itrans()) \
                 and hasattr(self,'itrans'):
@@ -783,7 +782,7 @@ class RadiativeSurface(object):
               **kwargs):
 
         if self.verbose:
-            print 'Plotting', self.name, suffix.replace('_','')
+            print('Plotting', self.name, suffix.replace('_',''))
 
         import pylab
         fig = kwargs.pop('fig', pylab.figure())
@@ -810,7 +809,7 @@ class RadiativeSurface(object):
 
         if not len(ax.get_lines()):
             if self.verbose:
-                print 'No data!'
+                print('No data!')
             return
 
         ax.set_xscale(xscale)
@@ -1018,7 +1017,7 @@ class RadiativeStack(RadiativeSurface):
         self.verbose = self.incident.verbose
 
         if self.verbose:
-            print 'Propagating to', self.name
+            print('Propagating to', self.name)
 
         # inherit some common stuff from the incident source
         self.wavelength = self.incident.wavelength
@@ -1259,7 +1258,7 @@ class RadiativeModel(object):
 
     def print_params(self):
         for k in sorted(self.params.keys()):
-            print '%s = %r' % (k,self.params[k])
+            print('%s = %r' % (k,self.params[k]))
 
     def pretty_print_params(self, filename=None, mode='w'):
         if filename is None:
@@ -1563,10 +1562,10 @@ class RadiativeModel(object):
 
     def results(self, summary=False, display=True):
         if display:
-            print '*'*80
+            print('*'*80)
             if hasattr(self,'tag') and self.tag:
-                print 'MODEL:',self.tag.replace('_',' ')
-            print '*'*80
+                print('MODEL:',self.tag.replace('_',' '))
+            print('*'*80)
             self.pretty_print_params()
         self.stack.results(display_this=False, display=display,
                            summary=summary)
@@ -1612,14 +1611,14 @@ def filter_load(model_obj, t2k, t4k, tvcs1, tvcs2, twin, n_inserts,
     surfs = stack.surfdict
     window_VCS2 = surfs['vcs2'].iload_int * n_inserts
     if np.isnan(window_VCS2):
-        raise ValueError,'NaN!'
+        raise ValueError('NaN!')
     window_VCS1 = surfs['vcs1'].iload_int * n_inserts
     if np.isnan(window_VCS1):
-        raise ValueError,'NaN!'
+        raise ValueError('NaN!')
     window_MT = surfs['4k'].iload_int * n_inserts
     inband = surfs['det'].iload_int
     if np.isnan(window_MT):
-        raise ValueError,'NaN!'
+        raise ValueError('NaN!')
     return inband, window_MT, window_VCS1, window_VCS2
 
 def model150to90(model):
@@ -1888,7 +1887,7 @@ def main(model_class=RadiativeModel):
         opts['tsky'] = args.tload
 
     if args.model not in models:
-        raise ValueError,'unrecognized model ID %s' % args.model
+        raise ValueError('unrecognized model ID %s' % args.model)
 
     if args.final:
         args.summary = False

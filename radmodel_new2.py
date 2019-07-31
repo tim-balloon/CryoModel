@@ -3,6 +3,9 @@ use('agg')
 
 import numpy as np
 import os
+# import reduce since python3 doesn't have reduce buildin
+from functools import reduce
+
 
 from radmodel import *
 RadiativeModelOld = RadiativeModel
@@ -152,7 +155,7 @@ class RadiativeSurface(object):
                  spill_frac=0, **kwargs):
         self.verbose = verbose
         if self.verbose:
-            print 'Initializing surface',name
+            print('Initializing surface',name)
         self.name = name
         self.temperature = temperature
         self.frequency = frequency
@@ -231,9 +234,9 @@ class RadiativeSurface(object):
                     stot = stot + s
             if not np.all(stot == 0):
                 return stot
-        print source.lower()
-        print [x[0].split(stype)[0].strip().lower() for x in slist]
-        raise KeyError, 'source {} not found in {}'.format(source, attr)
+        print(source.lower())
+        print([x[0].split(stype)[0].strip().lower() for x in slist])
+        raise KeyError( 'source {} not found in {}'.format(source, attr))
 
     def get_ispect(self, stype, **kwargs):
         return self.get_spect(stype, integrate=True, **kwargs)
@@ -330,11 +333,11 @@ class RadiativeSurface(object):
                 stype = t
                 break
         if not stype:
-            raise KeyError, 'unrecognized attr %s' % attr
+            raise KeyError('unrecognized attr %s' % attr)
 
         if stype in ['delta', 'extra']:
             if source is None:
-                raise ValueError, 'source required for delta or extra'
+                raise ValueError('source required for delta or extra')
             tag = source
         else:
             if source is None:
@@ -351,8 +354,8 @@ class RadiativeSurface(object):
                 self.add_to_attr('extra', spect * f, source=tag)
 
         if self.verbose:
-            print 'Surface {}: Adding `{}` to `{}`, {}'.format(
-                self.name, tag, attr, uprint(self.integrate(spect)))
+            print('Surface {}: Adding `{}` to `{}`, {}'.format(
+                self.name, tag, attr, uprint(self.integrate(spect))))
 
         spect_list = getattr(self, 'spect_%s_list' % attr)
         tag_list = [x[0] for x in spect_list]
@@ -510,7 +513,7 @@ class RadiativeSurface(object):
               **kwargs):
 
         if self.verbose:
-            print 'Plotting', self.name, suffix.replace('_','')
+            print('Plotting', self.name, suffix.replace('_',''))
 
         import pylab
         fig = kwargs.pop('fig', pylab.figure())
@@ -538,9 +541,9 @@ class RadiativeSurface(object):
 
         if not len(ax.get_lines()):
             if self.verbose:
-                print 'No data!'
+                print('No data!')
             return
-        
+
         ax.set_xscale(xscale)
         ax.set_yscale(yscale)
         ax.set_xlim(xlim)
@@ -550,20 +553,20 @@ class RadiativeSurface(object):
         ax.legend(loc=kwargs.pop('legend_loc', 'best'),
                   ncol=kwargs.pop('legend_ncol', 1))
         ax.set_title(kwargs.pop('title', self.name))
-        
+
         filename = '%s%s%s' % (prefix, self.name, suffix)
         filename = filename.lower().replace(' ','_')
         fig.savefig(kwargs.pop('filename', filename), bbox_inches='tight')
-        
+
         if kwargs.pop('close', True):
             pylab.close()
-    
+
     def plot_tra(self, forward=True, **kwargs):
-        
+
         trans = self.get_trans(forward=forward)
         abs = self.get_abs(forward=forward)
         ref = self.get_ref(forward=not forward)
-        
+
         spectra = [
             (trans, '-b', r'$t_{\nu}$', {}),
             (ref,   '-g', r'$r_{\nu}$', {}),
@@ -664,9 +667,9 @@ class RadiativeStack(RadiativeSurface):
                     index += 1
 
         if self.verbose:
-            print 'Stack {}: found {} source {} at index {}, {}'.format(
+            print('Stack {}: found {} source {} at index {}, {}'.format(
                 self.name, 'fwd' if forward else 'rev', source, index,
-                uprint(self.integrate(spect)))
+                uprint(self.integrate(spect))))
 
         # extract appropriate column of G for the given input
         ((A, B), (C, D)) = self.gmat
@@ -1012,17 +1015,17 @@ def filter_load(obj, t2k=2, t4k=5, tvcs1=35, tvcs2=130, twin=300,
         if extra:
             return getattr(surf, 'int_extra') * n_inserts
         return getattr(surf, 'int_delta') * n_inserts
-        
+
     surfs = stack.surfdict
     window_VCS2 = get_delta(surfs['vcs2'])
     if np.isnan(window_VCS2):
-        raise ValueError,'NaN!'
+        raise ValueError('NaN!')
     window_VCS1 = get_delta(surfs['vcs1'])
     if np.isnan(window_VCS1):
-        raise ValueError,'NaN!'
+        raise ValueError('NaN!')
     window_MT = get_delta(surfs['4k'])
     if np.isnan(window_MT):
-        raise ValueError,'NaN!'
+        raise ValueError('NaN!')
     inband = surfs['det'].int_fwd_abs
 
     if verbose:
