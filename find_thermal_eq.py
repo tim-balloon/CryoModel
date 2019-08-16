@@ -23,7 +23,7 @@ def find_equilibrium(args):
 	VCS1 = 1
 	VCS2 = 2
 	#setting initial temperatures and flows -20C = 253.15
-	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., args.VVTemp)
+	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
 	#(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., 280.)
 	mdot = 0.030
 
@@ -93,7 +93,7 @@ def find_equilibrium(args):
 	maxIter = 500
 
 	#tolerance
-	eps = 0.02
+	eps = 0.02 #0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
 	#gain = 0.025
@@ -188,6 +188,10 @@ def find_equilibrium(args):
 
 		VCS2excess = args.VCS2Excess #excess load in watts?
 
+		# MT is the net	load on the main tank
+		# MTLoad is the input load on the main tank
+		# MTLoad = MT - SFTLoad
+
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MT += wire_MT
@@ -261,16 +265,37 @@ def find_equilibrium(args):
 			print('--------')
 			print('Loads')
 			print('          |   SFT      |    MT      |   ICS      |   OCS      |')
-			print('Aperture  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (0.0, window_MT, window_VCS1, window_VCS2))
-			print('Radiative | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2))
-			#print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
+			print('Aperture  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+				% (0.0, window_MT, window_VCS1, window_VCS2))
+			print('Radiative | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+				% (Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2))
+			# print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
 			print('Flexures  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (cfact*flexCondLoad_SFT, cfact*flexCondLoad2in, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
 			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (tubeCondLoad_SFT, tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
 			print('--------')
 			print('Total     | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
+
+			print('--------')
+			print('Loads distribution')
+			print('          |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('Aperture  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+				.format(0.0, window_MT/MTLoad*100, window_VCS1/VCS1_load*100, window_VCS2/VCS2_load*100))
+			print('Radiative |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+				.format(Rad_SFT/SFTLoad*100, Rad_MT/MTLoad*100, Rad_VCS1/VCS1_load*100, Rad_VCS2/VCS2_load*100))
+
+			print('Flexures  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+				.format(cfact*flexCondLoad_SFT/SFTLoad*100, cfact*flexCondLoad2in/MTLoad*100, cfact*flexCondLoad3In/VCS1_load*100, cfact*flexCondLoad4In/VCS2_load*100))
+			print('Plumbing  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+				.format(tubeCondLoad_SFT/SFTLoad*100, tubeCondLoad_MT/MTLoad*100, 0, cfact*tubeCondLoad4In/VCS2_load*100))
+			print('--------')
+
 			print('In-band detector loading: %s' % uprint(inband))
+
+			print('--------')
+			print('Number of Iteration: {:d}'.format(n))
+
 			return T_VCS1 , T_VCS2, mdot
 		# Cutting back on our precision
 		if ( n == np.floor(maxIter/2) ):

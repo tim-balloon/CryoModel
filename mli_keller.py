@@ -29,7 +29,7 @@ def P_rad_MLI(N_l, Th, Tc, ep_r):
 	'''MLI heat Flux from Keller model (eqn 4-18)
 	returns q in W / m^2'''
 	return B_model* (ep_r/N_l) * (Th**4.67-Tc**4.67)
-	
+
 def P_solid_MLI(N_l, N_s, Th, Tc):
 	'''Solid conduction from Keller MLI model (eqn 4-18)
 	N_l is # of layers, N_s is layers/cm
@@ -41,13 +41,12 @@ def	p_ins(p, Th,Tc):
 
 def	P_N2(p_ins, N_l, Th, Tc):
 	return C_N2*p_ins/N_l * (Th**(m_N2+1) - Tc**(m_N2+1))
-	
+
 def P_He(p_ins, N_l, Th, Tc):
 	return C_He*p_ins/N_l * (Th**(m_He+1) - Tc**(m_He+1))
-	
+
 def P_gas(p_ins, N_l, Th, Tc):
 	return P_N2(p_ins, N_l, Th, Tc)+P_He(p_ins, N_l, Th, Tc)
-	
+
 def P_tot(p_ins, N_l, N_s, Th, Tc, e_r = ep_al):
 	return P_solid_MLI(N_l, N_s, Th, Tc)+P_rad_MLI(N_l, Th, Tc, e_r)+P_gas(p_ins, N_l, Th, Tc)
-
