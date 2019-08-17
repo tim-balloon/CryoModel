@@ -22,6 +22,7 @@ def find_equilibrium(args):
 	#Calculating the starting net heat load on VCS1 and VCS2
 	VCS1 = 1
 	VCS2 = 2
+
 	#setting initial temperatures and flows -20C = 253.15
 	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
 	#(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., 280.)
@@ -93,24 +94,19 @@ def find_equilibrium(args):
 	maxIter = 500
 
 	#tolerance
-	eps = 0.02 #0.02
+	eps = 0.01 #0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
 	#gain = 0.025
 	#gain = 0.05
-	gain = 0.1
+	gain = 0.02
 
-	while n <=maxIter:
+	while n <= maxIter:
+
 		if (abs(VCS1) > abs(VCS2)):
-			if (VCS1 > 0):
-				T_VCS1 = T_VCS1 + DeltaT*abs(VCS1)/gain
-			else:
-				T_VCS1 = T_VCS1 - DeltaT*abs(VCS1)/gain
+			T_VCS1 = T_VCS1 + DeltaT*VCS1/gain
 		else:
-			if (VCS2 > 0):
-				T_VCS2 = T_VCS2 + DeltaT*abs(VCS2)/gain
-			else:
-				T_VCS2 = T_VCS2 - DeltaT*abs(VCS2)/gain
+			T_VCS2 = T_VCS2 + DeltaT*VCS2/gain
 
 		#update loads
 
@@ -128,10 +124,10 @@ def find_equilibrium(args):
 
 			Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2 = \
 				mli_rad_keller(
-										T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
+					T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 					p_ins1=args.pins1, p_ins2=args.pins2,
-										e_Al=0.15, alpha=0.15, beta=4.0e-3,
-										config=config, insNum=insNum)
+					e_Al=0.15, alpha=0.15, beta=4.0e-3,
+					config=config, insNum=insNum)
 			Rad_SFT = Rad_SFTtoMT+RadSFTtoVCS1
 			#Rad_VCS2 *= 1.5
 
@@ -173,7 +169,7 @@ def find_equilibrium(args):
 		#gas cooling power
 		gasCoolingVCS1 = e_23*mdot*CpInt(T_MT, T_VCS1, T_He, Cp_He)
 		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
-		l = 21. #Helium heat of evaporization [J/g]
+		l = 20.9 #Helium heat of evaporization [J/g]
 
 		MTexcess = args.mtExcess #excess load in watts. coming from VCS1
 
@@ -183,10 +179,10 @@ def find_equilibrium(args):
 		MTexcessShell = sigma*(args.mtLLVCS2perc/100.)*MT_Area*(T_Shell**scale - T_MT**scale) #direct LL from shell, not cooling power
 		MTexcess2 = sigma*(args.mtLLVCS1perc/100.)*MT_Area*(T_VCS2**scale - T_MT**scale) #LL from VCS2, cools VCS2
 
-		VCS1excess = args.VCS1Excess #excess load in watts?
+		VCS1excess = args.VCS1Excess #excess load on vcs1 in watts
 		VCS1excessShell = sigma*(args.VCS1LLperc/100.)*VCS1_Area*(T_Shell**scale-T_VCS1**scale)
 
-		VCS2excess = args.VCS2Excess #excess load in watts?
+		VCS2excess = args.VCS2Excess #excess load on vcs2 in watts
 
 		# MT is the net	load on the main tank
 		# MTLoad is the input load on the main tank
@@ -245,8 +241,13 @@ def find_equilibrium(args):
 
 		#print VCS1, VCS2, mdot
 		#Check if loads ~ zero
+
+		print(VCS1, VCS2)
+		print(T_VCS1, T_VCS2)
+
 		if (abs(VCS1) < eps and abs(VCS2) < eps):
 
+			print('-------------------')
 			print('ICS cryocooler power: %s' % icsCryocooler)
 			print('ICS gas cooling power: %s' % gasCoolingVCS1)
 
@@ -296,16 +297,20 @@ def find_equilibrium(args):
 			print('--------')
 			print('Number of Iteration: {:d}'.format(n))
 
+			print('--------')
+
 			return T_VCS1 , T_VCS2, mdot
-		# Cutting back on our precision
-		if ( n == np.floor(maxIter/2) ):
-			DeltaT = DeltaT/2
-			eps = eps*1.5
-			print(n)
-		if ( n == np.floor(0.75*maxIter) ):
-			DeltaT = DeltaT/2
-			eps = eps*1.5
-			print(n)
+
+		# # Cutting back on our precision
+		# if ( n == np.floor(maxIter/2) ):
+		# 	DeltaT = DeltaT/2
+		# 	eps = eps*1.5
+		# 	print(n)
+		# if ( n == np.floor(0.75*maxIter) ):
+		# 	DeltaT = DeltaT/2
+		# 	eps = eps*1.5
+		# 	print(n)
+
 		n += 1
 
 
