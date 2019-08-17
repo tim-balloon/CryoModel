@@ -2,4 +2,5 @@
 *.pyc
 .DS_Store
 .ipynb_checkpoints/
+result_comp.dat
 figs/
