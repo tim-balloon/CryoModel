@@ -25,15 +25,14 @@ def find_equilibrium(args):
 
 	#setting initial temperatures and flows -20C = 253.15
 	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
-	#(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 10., 100., 280.)
 	mdot = 0.030
 
 	#Cooling efficiencies
-	e_23 = 0.9 #1    #cooling efficiency between MT and VCS1
-	e_34 = 0.9 # 0.9  #cooling efficiency between VCS1 and VCS2
+	effi_23 = 0.9 # 1    #cooling efficiency between MT and VCS1
+	effi_34 = 0.9 # 0.9  #cooling efficiency between VCS1 and VCS2
 
 	sftPumped = True
-	#sftEmpty = False
+
 	sftEmpty = args.sftEmpty
 
 	if args.ULDB:
@@ -56,10 +55,15 @@ def find_equilibrium(args):
 		config = 'theo_alt1'
 		insNum = 6
 		numLiters = 1000.0
+	elif args.TNG:
+		config = 'TNG'
+		insNum = 1
+		numLiters = 250.0
 	else:
 		config = 'theo'
 		insNum = 6
 		numLiters = 1100.0
+
 
 	#place holders for filter loads
 	#window_MT =  insNum*0.05 #50 mW estimate
@@ -94,7 +98,7 @@ def find_equilibrium(args):
 	maxIter = 500
 
 	#tolerance
-	eps = 0.01 #0.02
+	eps = 0.02 #0.02
 	sfteps = 0.0005
 	DeltaT = 0.02
 	#gain = 0.025
@@ -167,14 +171,15 @@ def find_equilibrium(args):
 		flexCondLoad_VCS1 = cfact*(flexCondLoad3In + flexCondLoad3Out)
 		flexCondLoad_VCS2 = cfact*(flexCondLoad4In + flexCondLoad4Out)
 		#gas cooling power
-		gasCoolingVCS1 = e_23*mdot*CpInt(T_MT, T_VCS1, T_He, Cp_He)
-		gasCoolingVCS2 = e_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
+		gasCoolingVCS1 = effi_23*mdot*CpInt(T_MT, T_VCS1, T_He, Cp_He)
+		gasCoolingVCS2 = effi_34*mdot*CpInt(T_VCS1, T_VCS2, T_He, Cp_He)
 		l = 20.9 #Helium heat of evaporization [J/g]
 
 		MTexcess = args.mtExcess #excess load in watts. coming from VCS1
 
 		SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
 
+		# Excessive loading per args settings
 		scale=4.
 		MTexcessShell = sigma*(args.mtLLVCS2perc/100.)*MT_Area*(T_Shell**scale - T_MT**scale) #direct LL from shell, not cooling power
 		MTexcess2 = sigma*(args.mtLLVCS1perc/100.)*MT_Area*(T_VCS2**scale - T_MT**scale) #LL from VCS2, cools VCS2
@@ -184,10 +189,10 @@ def find_equilibrium(args):
 
 		VCS2excess = args.VCS2Excess #excess load on vcs2 in watts
 
+
 		# MT is the net	load on the main tank
 		# MTLoad is the input load on the main tank
 		# MTLoad = MT - SFTLoad
-
 		MT = capLoad + Rad_MT + window_MT  \
 				- Rad_SFTtoMT
 		MT += wire_MT
@@ -203,13 +208,18 @@ def find_equilibrium(args):
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
 
 		#cryocooler parameters:
-		T, lift = np.loadtxt('cryotel_GT_23C.txt', unpack = True, delimiter = ',')
-		p = np.polyfit(T, lift, 1) #fitting a line for now since the cooling curve is close
-		lowT = np.array([20, 30, 40])
-		lowlift = np.array([0.124, 0.223, 0.3])
-		p_low = np.polyfit(lowT, lowlift, 1) #linear fit to lower temp data from AKARI
+		if (args.icsCoolers + args.ocsCoolers) > 0 : # if there is cryo cooler
+			T, lift = np.loadtxt('cryotel_GT_23C.txt', unpack = True, delimiter = ',')
+			p = np.polyfit(T, lift, 1) #fitting a line for now since the cooling curve is close
+			lowT = np.array([20, 30, 40])
+			lowlift = np.array([0.124, 0.223, 0.3])
+			p_low = np.polyfit(lowT, lowlift, 1) #linear fit to lower temp data from AKARI
 
-		icsCryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
+			icsCryocooler = args.icsCoolers*np.max([np.polyval(p, T_VCS1), np.polyval(p_low, T_VCS1)])
+			ocsCryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
+		else:
+			icsCryocooler = 0
+			ocsCryocooler = 0
 
 		VCS1 = Rad_VCS1 + window_VCS1 \
 				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - icsCryocooler \
@@ -220,11 +230,11 @@ def find_equilibrium(args):
 		VCS1 += wire_VCS1_in - wire_VCS1_out
 		VCS1_load += wire_VCS1_in
 
-		VCS1 +=  flexCondLoad_VCS1
+		VCS1 += flexCondLoad_VCS1
 		VCS1 += VCS1excess + VCS1excessShell
 		VCS1_load += cfact*flexCondLoad3In + VCS1excess + VCS1excessShell
 
-		ocsCryocooler = args.ocsCoolers*np.max([np.polyval(p, T_VCS2), np.polyval(p_low, T_VCS2)])
+
 
 		VCS2 = Rad_VCS2  + window_VCS2 \
 				-Rad_VCS1 - gasCoolingVCS2 - ocsCryocooler - MTexcess2 - VCS1excess
@@ -321,6 +331,7 @@ if __name__ == '__main__':
 	parser.add_argument('-theo2', dest='theo2', action='store_true', help='Run theo model with large flexure intercept only to VCS2')
 	parser.add_argument('-theo_alt1', dest='theo_alt1', action='store_true', help='Run theo model with as built dims, but connected only to VCS1 intercept')
 	parser.add_argument('-lloro', dest='lloro', action='store_true', help='Theo model with large flexure intercept only to VCS1, equivalent to lloro model')
+	parser.add_argument('-TNG', dest='TNG', action='store_true', help='Run TNG model')
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
 	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 0.0, help='Number of OCS coolers')
 	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')

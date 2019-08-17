@@ -3,6 +3,7 @@ use('agg')
 
 import numpy as np
 import os
+
 # import reduce since python3 doesn't have reduce buildin
 from functools import reduce
 
@@ -1004,7 +1005,7 @@ class RadiativeModel(RadiativeModelOld):
 def filter_load(obj, t2k=2, t4k=5, tvcs1=35, tvcs2=130, twin=300,
                 n_inserts=6, verbose=False, tag=None, filename=None,
                 extra=False, mode='w', **params):
-				
+
     if isinstance(obj, RadiativeStack):
         stack = obj
     else:

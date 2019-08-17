@@ -26,29 +26,49 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 	MLI is only used on VCS1 and VCS2 as gas loading would make MT MLI ineffective'''
 
 	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
-	#Thickness of mli sheets
-	t1 = 2.00 #[cm]
-	t2 = 3.81 #[cm]
 
-	#number of layers
-	N1 = 16
-	N2 = 52
-	N1_s = N1 / t1
-	N2_s = N2 / t2
+	if config == 'TNG':
+		#Thickness of mli sheets
+		t1 = 2.00 #[cm]
+		t2 = 3.81 #[cm]
 
-	Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
-	Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
-	Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
-	RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
+		#number of layers
+		N1 = 15
+		N2 = 25
+		N1_s = N1 / t1
+		N2_s = N2 / t2
 
-	Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
-		MLIEmiss(T_MT,T_VCS1,0,alpha,beta), e_Al*0.9))))
+		Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
+		Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
+		Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
+		RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
+
+		Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
+			MLIEmiss(T_MT,T_VCS1,0,alpha,beta), e_Al*0.9))))
+	else:
+		#Thickness of mli sheets
+		t1 = 2.00 #[cm]
+		t2 = 3.81 #[cm]
+
+		#number of layers
+		N1 = 16
+		N2 = 52
+		N1_s = N1 / t1
+		N2_s = N2 / t2
+
+		Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
+		Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
+		Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
+		RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
+
+		Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
+			MLIEmiss(T_MT,T_VCS1,0,alpha,beta), e_Al*0.9))))
 
 	return Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2
 
 def mli_cond(T_VCS1,T_VCS2,T_Shell,Lambda = 1.0e-6, config='theo', insNum = 6.0):
 
-	'''temperatures in Kelvin
+	'''Temperatures in Kelvin
 		Lambda is the effective MLI conductivity, given in microWatts/cm/K
 	'''
 
