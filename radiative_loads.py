@@ -22,29 +22,36 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 	p_ins1=1e-3, p_ins2=1e-3, e_Al=0.15, alpha=0.15, beta=4.0e-3, config='theo', insNum = 6.0
 	):
 
-	'''returns the radiative loads INCLUDING all conductive and gas effects in MLI
-	MLI is only used on VCS1 and VCS2 as gas loading would make MT MLI ineffective'''
+	'''returns the radiative loads INCLUDING all conductive and gas effects in MLI.
+	MLI is only used on VCS1 and VCS2 as gas loading would dmake MT MLI ineffective'''
 
 	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
 
 	if config == 'TNG':
-		#Thickness of mli sheets
-		t1 = 2.00 #[cm]
-		t2 = 3.81 #[cm]
 
-		#number of layers
+		# number of layers, from Galitzki thesis
 		N1 = 15
 		N2 = 25
-		N1_s = N1 / t1
-		N2_s = N2 / t2
+		NMT = 0
 
-		Rad_VCS1 = VCS1_Area*1e-4*mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
-		Rad_VCS2 = VCS2_Area*1e-4*mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
-		Rad_SFTtoMT = sigma*e_Al*(SFT_Area/2)*(T_MT**4-T_SFT**4)
-		RadSFTtoVCS1 = sigma*e_Al*(SFT_Area/2)*(T_VCS1**4-T_SFT**4)
+		# layers per cm
+		N1_s = 20
+		N2_s = 20
+		NMT_s = 1
+
+		Rad_VCS1 = VCS1_Area*1e-4* mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
+		Rad_VCS2 = VCS2_Area*1e-4* mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
+
+		Rad_SFTtoMT = sigma*e_Al*(SFT_Area)*(T_MT**4-T_SFT**4)
+		RadSFTtoVCS1 = 0.
+
+		# for main tank, keller might no longer be accurate because:
+		# 1. temp is lower then the lowest in keller
+		# 2. conduction is dominating at lower temp thus we can use dense MLI
 
 		Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
-			MLIEmiss(T_MT,T_VCS1,0,alpha,beta), e_Al*0.9))))
+			MLIEmiss(T_MT,T_VCS1,NMT,alpha,beta), e_Al*0.9))))
+
 	else:
 		#Thickness of mli sheets
 		t1 = 2.00 #[cm]
@@ -113,33 +120,57 @@ def MLIEmiss(Tc, Th, N, alpha, beta):
 	return emissivities
 
 def rad_load(T_SFT, T_MT, T_VCS1,T_VCS2,T_Shell, e_Al=0.15, alpha=0.15, beta=4.0e-3, config = 'theo', insNum = 6.0):
-	N1 = 2 #MLI layers around SFT
-	N2 = 0
-	N3 = 16
-	N4 = 52
 
-	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
+	if config == 'TNG':
+		N1 = 0 #MLI layers around SFT
+		N2 = 0
+		N3 = 15
+		N4 = 25
 
-	#Radiative heat fluxess
-	if config == 'lloro':
-			RadSFTtoVCS1 = sigma*SFT_Area/2*(T_VCS1**4-T_SFT**4)/sum(1./effectEmiss(np.hstack((e_Al,
-							MLIEmiss(T_SFT,T_VCS1,N1,alpha,beta), e_Al))))
+		SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
 
-			Rad_SFTtoMT = sigma*SFT_Area/2*(T_MT**4-T_SFT**4)/sum(1./effectEmiss(np.hstack((e_Al,
-							MLIEmiss(T_SFT,T_MT,N1,alpha,beta), e_Al))))
+		#Radiative heat fluxess
+		Rad_SFTtoMT = sigma*e_Al*SFT_Area*(T_MT**4-T_SFT**4)
+		RadSFTtoVCS1 = 0.
+
+		Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
+			MLIEmiss(T_MT,T_VCS1,N2,alpha,beta), e_Al*0.9))))
+
+		Rad_VCS1 = sigma*VCS1_Area*(T_VCS2**4-T_VCS1**4)/sum(1./effectEmiss(np.hstack((e_Al*0.9,
+			MLIEmiss(T_VCS1,T_VCS2,N3,alpha,beta), e_Al))))
+
+		Rad_VCS2 = sigma*VCS2_Area*(T_Shell**4-T_VCS2**4)/sum(1./effectEmiss(np.hstack((e_Al,
+			MLIEmiss(T_VCS2,T_Shell,N4,alpha,beta), e_Al*1.1))))
+
 
 	else:
-			Rad_SFTtoMT = sigma*e_Al*SFT_Area/2*(T_MT**4-T_SFT**4)
-			RadSFTtoVCS1 = sigma*e_Al*SFT_Area/2*(T_VCS1**4-T_SFT**4)
+		N1 = 2 #MLI layers around SFT
+		N2 = 0
+		N3 = 16
+		N4 = 52
 
-	Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
-		MLIEmiss(T_MT,T_VCS1,N2,alpha,beta), e_Al*0.9))))
+		SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
 
-	Rad_VCS1 = sigma*VCS1_Area*(T_VCS2**4-T_VCS1**4)/sum(1./effectEmiss(np.hstack((e_Al*0.9,
-		MLIEmiss(T_VCS1,T_VCS2,N3,alpha,beta), e_Al))))
+		#Radiative heat fluxess
+		if config == 'lloro':
+				RadSFTtoVCS1 = sigma*SFT_Area/2*(T_VCS1**4-T_SFT**4)/sum(1./effectEmiss(np.hstack((e_Al,
+								MLIEmiss(T_SFT,T_VCS1,N1,alpha,beta), e_Al))))
 
-	Rad_VCS2 = sigma*VCS2_Area*(T_Shell**4-T_VCS2**4)/sum(1./effectEmiss(np.hstack((e_Al,
-		MLIEmiss(T_VCS2,T_Shell,N4,alpha,beta), e_Al*1.1))))
+				Rad_SFTtoMT = sigma*SFT_Area/2*(T_MT**4-T_SFT**4)/sum(1./effectEmiss(np.hstack((e_Al,
+								MLIEmiss(T_SFT,T_MT,N1,alpha,beta), e_Al))))
+
+		else:
+				Rad_SFTtoMT = sigma*e_Al*SFT_Area/2*(T_MT**4-T_SFT**4)
+				RadSFTtoVCS1 = sigma*e_Al*SFT_Area/2*(T_VCS1**4-T_SFT**4)
+
+		Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
+			MLIEmiss(T_MT,T_VCS1,N2,alpha,beta), e_Al*0.9))))
+
+		Rad_VCS1 = sigma*VCS1_Area*(T_VCS2**4-T_VCS1**4)/sum(1./effectEmiss(np.hstack((e_Al*0.9,
+			MLIEmiss(T_VCS1,T_VCS2,N3,alpha,beta), e_Al))))
+
+		Rad_VCS2 = sigma*VCS2_Area*(T_Shell**4-T_VCS2**4)/sum(1./effectEmiss(np.hstack((e_Al,
+			MLIEmiss(T_VCS2,T_Shell,N4,alpha,beta), e_Al*1.1))))
 
 	return Rad_SFTtoMT, RadSFTtoVCS1, Rad_MT, Rad_VCS1, Rad_VCS2
 

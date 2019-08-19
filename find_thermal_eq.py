@@ -25,6 +25,7 @@ def find_equilibrium(args):
 
 	#setting initial temperatures and flows -20C = 253.15
 	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
+	# (T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 65., 160., args.VVTemp)
 	mdot = 0.030
 
 	#Cooling efficiencies
@@ -103,7 +104,7 @@ def find_equilibrium(args):
 	DeltaT = 0.02
 	#gain = 0.025
 	#gain = 0.05
-	gain = 0.02
+	gain = 0.05
 
 	while n <= maxIter:
 
@@ -144,6 +145,9 @@ def find_equilibrium(args):
 
 			Rad_VCS1 += mli_load_VCS1  #is this appropriate?  some of this goes to cooling, should all of it?
 			Rad_VCS2 += mli_load_VCS2
+
+
+		print("Rad loads:" , Rad_MT, Rad_VCS1, Rad_VCS2)
 
 		#print('TVCS2: %s, VCS2 window power: %s' % (T_VCS2, window_VCS2))
 		#print('TVCS1: %s, VCS1 window power: %s' % (T_VCS1, window_VCS1))
@@ -209,7 +213,7 @@ def find_equilibrium(args):
 
 		#cryocooler parameters:
 		if (args.icsCoolers + args.ocsCoolers) > 0 : # if there is cryo cooler
-			T, lift = np.loadtxt('cryotel_GT_23C.txt', unpack = True, delimiter = ',')
+			T, lift = np.loadtxt('./cryoCooler/cryotel_GT_23C.txt', unpack = True, delimiter = ',')
 			p = np.polyfit(T, lift, 1) #fitting a line for now since the cooling curve is close
 			lowT = np.array([20, 30, 40])
 			lowlift = np.array([0.124, 0.223, 0.3])
@@ -351,7 +355,7 @@ if __name__ == '__main__':
 	parser.add_argument('-pins1', dest='pins1', action='store', type=float,
 							default=1e-4, help='VCS1 interstitial pressure')
 	parser.add_argument('-pins2', dest='pins2', action='store', type=float,
-							default=1e-4, help='VCS1 interstitial pressure')
+							default=1e-4, help='VCS2 interstitial pressure')
 
 	args = parser.parse_args()
 
