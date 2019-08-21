@@ -145,7 +145,7 @@ def rad_load(T_SFT, T_MT, T_VCS1,T_VCS2,T_Shell, e_Al=0.15, alpha=0.15, beta=4.0
 
 	if config == 'TNG':
 		N1 = 0 #MLI layers around SFT
-		N2 = 0
+		N2 = 5
 		N3 = 15
 		N4 = 25
 

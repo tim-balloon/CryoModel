@@ -55,8 +55,8 @@ def find_equilibrium(args):
 	VCS2 = 2
 
 	#setting initial temperatures and flows -20C = 253.15
-	# (T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
-	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 66.7, 191.4, args.VVTemp)
+	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
+	# (T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 66.7, 191.4, args.VVTemp)
 
 	mdot = 0.030
 
@@ -289,17 +289,17 @@ def find_equilibrium(args):
 			print('n={:d}'.format(n))
 
 			print('Loadings')
-			print('          |   SFT      |    MT      |   ICS      |   OCS      |')
-			print('Aperture  | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+			print('           |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('Aperture   | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 				.format(0.0, window_MT, window_VCS1, window_VCS2))
-			print('Radiative | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+			print('Radiative  | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 				.format(Rad_SFT/SFTLoad, Rad_MT, Rad_VCS1, Rad_VCS2))
-			print('Flexures  | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+			print('Structural | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 				.format(cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
-			print('Plumbing  | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+			print('Plumbing   | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 				.format(tubeCondLoad_SFT, tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
 			print('--------')
-			print('Total     | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+			print('Total      | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 			 	.format(SFTLoad, MTLoad, VCS1_load, VCS2_load))
 			print('\n')
 
@@ -318,11 +318,15 @@ def find_equilibrium(args):
 			print('OCS cryocooler power: %1.3f W' % ocsCryocooler)
 			print('OCS gas cooling power: %1.3f W' % gasCoolingVCS2)
 
-			print('mdot (g/s): %1.3f W, Holdtime (days): %1.3f W' % (mdot, holdtime(mdot, numLiters = numLiters)))
-			print('SLPM (from MT/l): %1.3f W' % (mdot2SLPM(mdot)))
-			print('SLPM (from MTLoad/l): %1.3f W' % (mdot2SLPM(mdot2)))
+			print('mdot (g/s): %1.3f, Holdtime (days): %1.3f ' % (mdot, holdtime(mdot, numLiters = numLiters)))
+			print('SLPM (from MT/l): %1.3f ' % (mdot2SLPM(mdot)))
+			print('SLPM (from MTLoad/l): %1.3f ' % (mdot2SLPM(mdot2)))
+			print('--------')
 			print('MT power: %1.3f W' % (MT))
 			print('MTLoad power: %1.3f W' % (MTLoad))
+			print('--------')
+			print('SFT Loading: %1.2e W' % (SFTLoad))
+
 			#print summary
 			print('--------')
 			print(' Stage | Temperature ')
@@ -330,34 +334,34 @@ def find_equilibrium(args):
 			print(' ICS   | %1.2f K ' % T_VCS1)
 			print('--------')
 			print('Loads')
-			print('          |   SFT      |    MT      |   ICS      |   OCS      |')
-			print('Aperture  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+			print('           |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('Aperture   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (0.0, window_MT, window_VCS1, window_VCS2))
-			print('Radiative | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+			print('Radiative  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2))
 			# print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
-			print('Flexures  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+			print('Structural | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
-			print('Plumbing  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+			print('Plumbing   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (tubeCondLoad_SFT, tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
 			print('--------')
-			print('Total     | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
+			print('Total      | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
 
 			print('--------')
 			print('Loads distribution')
-			print('          |   SFT      |    MT      |   ICS      |   OCS      |')
-			print('Aperture  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+			print('           |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('Aperture   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
 				.format(0.0, window_MT/MTLoad*100, window_VCS1/VCS1_load*100, window_VCS2/VCS2_load*100))
-			print('Radiative |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+			print('Radiative  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
 				.format(Rad_SFT/SFTLoad*100, Rad_MT/MTLoad*100, Rad_VCS1/VCS1_load*100, Rad_VCS2/VCS2_load*100))
 
-			print('Flexures  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+			print('Structural |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
 				.format(cfact*flexCondLoad_SFT/SFTLoad*100, cfact*flexCondLoad2In/MTLoad*100, cfact*flexCondLoad3In/VCS1_load*100, cfact*flexCondLoad4In/VCS2_load*100))
-			print('Plumbing  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+			print('Plumbing   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
 				.format(tubeCondLoad_SFT/SFTLoad*100, tubeCondLoad_MT/MTLoad*100, 0, cfact*tubeCondLoad4In/VCS2_load*100))
 			print('--------')
 
-			print('In-band detector loading: %1.3f W' % uprint(inband))
+			print('In-band detector loading: %s' % uprint(inband))
 
 			print('--------')
 			print('Number of Iteration: {:d}'.format(n))
