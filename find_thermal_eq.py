@@ -55,8 +55,10 @@ def find_equilibrium(args):
 	VCS2 = 2
 
 	#setting initial temperatures and flows -20C = 253.15
-	(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
-	# (T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 66.7, 191.4, args.VVTemp)
+	if config == 'TNG':
+		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 66.7, 191.4, args.VVTemp)
+	else:
+		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
 
 	mdot = 0.030
 
@@ -117,7 +119,7 @@ def find_equilibrium(args):
 	DeltaT = 0.02
 	#gain = 0.025
 	#gain = 0.05
-	gain = 0.05
+	gain = 0.03
 
 	while n <= maxIter:
 
