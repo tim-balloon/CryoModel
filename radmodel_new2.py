@@ -1053,6 +1053,7 @@ def filter_load(obj, t2k=2, t4k=5, tvcs1=35, tvcs2=130, twin=300,
 
     return inband, window_MT, window_VCS1, window_VCS2
 
+
 if __name__ == "__main__":
 
     main(model_class=RadiativeModel)

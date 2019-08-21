@@ -51,6 +51,6 @@ def P_gas(p_ins, N_l, Th, Tc):
 
 def P_tot(p_ins, N_l, N_s, Th, Tc, e_r = ep_al):
 	# print(N_l)
-	print(P_solid_MLI(N_l, N_s, Th, Tc), P_rad_MLI(N_l, Th, Tc, e_r), P_gas(p_ins, N_l, Th, Tc))
+	# print(P_solid_MLI(N_l, N_s, Th, Tc), P_rad_MLI(N_l, Th, Tc, e_r), P_gas(p_ins, N_l, Th, Tc))
 
 	return P_solid_MLI(N_l, N_s, Th, Tc)+P_rad_MLI(N_l, Th, Tc, e_r)+P_gas(p_ins, N_l, Th, Tc)

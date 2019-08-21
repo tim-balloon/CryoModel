@@ -17,6 +17,24 @@ import mli_keller
 sigma = 5.6704E-12   #[J/s*cm^2*K^4]
 
 
+def toy_filter_load(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, config='TNG', insNum = 1.0):
+
+	if config == 'TNG':
+
+		# filter diameter taken from Galitzki's thesis
+		d_filter_VCS2 = 4.5 * 2.54  # cm
+		d_filter_VCS1 = 4.5 * 2.54  # cm
+		d_filter_MT = 4.125 * 2.54  # cm
+
+		effi_filter_VCS2 = 0.9
+		effi_filter_VCS1 = 0.9
+		effi_filter_MT = 0.9
+
+		window_VCS2 = sigma*(1-effi_filter_VCS2)*(np.pi*d_filter_VCS2**2/4)*(T_Shell**4-T_VCS2**4)
+		window_VCS1 = sigma*(1-effi_filter_VCS1)*(np.pi*d_filter_VCS1**2/4)*(T_VCS2**4-T_VCS1**4)
+		window_MT = sigma*(1-effi_filter_MT)*(np.pi*d_filter_MT**2/4)*(T_VCS1**4-T_MT**4)
+
+	return window_MT, window_VCS1, window_VCS2
 
 def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 	p_ins1=1e-3, p_ins2=1e-3, e_Al=0.15, alpha=0.15, beta=4.0e-3, config='theo', insNum = 6.0
@@ -32,12 +50,12 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 		# number of layers, from Galitzki thesis
 		N1 = 15
 		N2 = 25
-		NMT = 0
+		NMT = 5
 
 		# layers per cm
 		N1_s = 20
 		N2_s = 20
-		NMT_s = 1
+		NMT_s = 5
 
 		Rad_VCS1 = VCS1_Area*1e-4* mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
 		Rad_VCS2 = VCS2_Area*1e-4* mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
@@ -48,9 +66,13 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 		# for main tank, keller might no longer be accurate because:
 		# 1. temp is lower then the lowest in keller
 		# 2. conduction is dominating at lower temp thus we can use dense MLI
+		# 3. keller did not test with wide gap MLI
 
-		Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
-			MLIEmiss(T_MT,T_VCS1,NMT,alpha,beta), e_Al*0.9))))
+		p_mt = 1e-6 #low pressure due to cryogenics pumping at He temp
+		Rad_MT = MT_Area*1e-4* mli_keller.P_tot(p_mt, NMT, NMT_s, T_VCS1, T_MT, e_r = e_Al)
+
+		# Rad_MT = sigma*MT_Area*(T_VCS1**4-T_MT**4)/sum(1./effectEmiss(np.hstack((e_Al*0.8,
+		# 	MLIEmiss(T_MT,T_VCS1,NMT,alpha,beta), e_Al*0.9))))
 
 	else:
 		#Thickness of mli sheets

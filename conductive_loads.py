@@ -4,7 +4,8 @@
 conductive_loads.py
 
 Created by Zigmund Kermish on 2014-01-20.  Heavily copy/pasted from Jon Gudmundsson's Matlab code, which was based
-on Bill Jones' IDL code"""
+on Bill Jones' IDL code
+"""
 
 import sys
 import os
@@ -12,6 +13,7 @@ import scipy.integrate as integrate
 import numpy as np
 
 from gas_props import *
+
 
 def ss_low_cv(t_in):
 	# low temperature conductivity stainless steel 316 in [W/m/K]
@@ -45,6 +47,39 @@ def mfg_k(f):
 g10warpk = mfg_k(llg10warp)
 g10normk = mfg_k(llg10norm)
 k_G10warp = g10warpk(T_G10)
+
+
+def ringArea(OD, thickness):
+	'''return the area of a ring'''
+	return np.pi * ((OD/2.)**2 - (OD/2.-thickness)**2)
+
+def HeatFlux_G10(T_min, T_max, AoverL, warp=False):
+	'''Conductivity through G10 material
+	AoverL: area/length	in meters
+	return in Watts
+	'''
+	if T_min == T_max:
+		return 0
+	else:
+		dT = min(T_G10[1:] - T_G10[:-1])
+		T = np.arange(T_min, T_max, dT/2.)
+		if warp: K_G10 = k_G10warp
+		else: K_G10 = k_G10
+
+		return AoverL * integrate.trapz(np.interp(T, T_G10, K_G10), T)
+
+def HeatFlux_SS(T_min, T_max, AoverL):
+	'''Conductivity through stainless steel
+	AoverL: area/length	in meters
+	return in Watts
+	'''
+	if T_min == T_max:
+		return 0
+	else:
+		dT = min(T_SS[1:] - T_SS[:-1])
+		T = np.arange(T_min, T_max, dT/2.)
+		return AoverL * integrate.trapz(np.interp(T, T_SS, k_SS), x =T)
+
 
 def TestLFlexH(T_min, T_max, L, T_G10, k_G10):
 	'''Conductivity through large test cryostat flexures cross sectional area
@@ -174,23 +209,27 @@ def SSSFTTubeGas(T_min, T_max, L):
 
 def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFactor=1.0):
 
-	#--------------------------------------------------------------------------
-	# Notes:
-	# Calculating the conductive load through the vent and fill lines, these
-	# calculations include both the conduction through the stainless steel
-	# tubes as well as the conduction through the stationary gas in the np.pipes
-	# that are normally valved off (since we are venting through the vcs vent
-	# line)
-	#
-	# The SFT fill and vent line are heat sunk at VCS2 and to some extent on
-	# the MT as well. There is OFHC strain relief on both the SFT fill and vent
-	# line that is roughly 0.6 meters away from the SFT and connected at the
-	# bottom of the main tank. We assume that this strain relief does not
-	# perform as an ideal heat sink and add a 5 K gradient between it and
-	# whatever the temperature of the main tank is. This will increase the load
-	# to the SFT somewhat.
-	#
-	#--------------------------------------------------------------------------
+	'''
+	--------------------------------------------------------------------------
+
+	Notes:
+	Calculating the conductive load through the vent and fill lines
+
+	These calculations include both the conduction through the stainless steel
+	tubes as well as the conduction through the stationary gas in the np.pipes
+	that are normally valved off (since we are venting through the vcs vent
+	line)
+
+	The SFT fill and vent line are heat sunk at VCS2 and to some extent on
+	the MT as well. There is OFHC strain relief on both the SFT fill and vent
+	line that is roughly 0.6 meters away from the SFT and connected at the
+	bottom of the main tank. We assume that this strain relief does not
+	perform as an ideal heat sink and add a 5 K gradient between it and
+	whatever the temperature of the main tank is. This will increase the load
+	to the SFT somewhat.
+
+	--------------------------------------------------------------------------
+	'''
 
 	L_MTFill_24 = 1.1
 	L_MTFill_45 = 1.7
@@ -258,21 +297,19 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 
 
 	#--------------------------------------------------------------------------
-
-	#--------------------------------------------------------------------------
 	# SFT specific
 	#--------------------------------------------------------------------------
+
 	if not sftEmpty and sftPumped:
 	  insLoading = 300e-6 # Loading from 4K to the 1.5 K stage
 	else:
 	  insLoading = 0
-	#--------------------------------------------------------------------------
+
 
 	#--------------------------------------------------------------------------
 	# Calculating the conductive load through all sorts of flexures
 	#--------------------------------------------------------------------------
 
-	#--------------------------------------------------------------------------
 
 	#Calculating the total conductive load to MT, VCS1 and VCS2 from flexures
 	if config == 'theo':
@@ -307,6 +344,7 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad3out = -6*(LFlexToMT+SFlexToMT)-3*MTAxFlextoVCS1
 		flexCondLoad4in = 6*(SFlexToVCS2+LFlexToVCS2)
 		flexCondLoad4out = -6*LFlexToVCS1
+
 
 	elif config == 'lloro':
 		#vcs 1 intercept only
@@ -476,40 +514,50 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad4in = 4*FlexToVCS2
 		flexCondLoad4out = -4*FlexToVCS1 #VCS 2 -> VCS1 connection
 
-	elif config == 'TNG': #need numbers!!!!
-		#vcs 1 intercept only
-		# Relevant lengths in meters
-		length = -0.03
-		L_MTLargeFlex = 0.07874 + length  #full length to shell, no VCS intercepts
-		L_VCS1LargeFlex = 0.0203 - length
-		L_VCS2LargeFlex = 1e-4
+	elif config == 'TNG':
 
-		L_MTSmallFlex = 0.0330  #1.3 inches
-		L_VCS2SmallFlex = 0.0330 # 1.3 inches
-		L_MTAxFlex = 0.09015
-		L_SFTFLex = 0.03937
+		# Relevant lengths and areas in meters, from BLAST excel
+		L_ShelltoVCS2 = 27.3125 * 0.0254
+		A_ShelltoVCS2 = ringArea(35.625*0.0254, 0.0625*0.0254)
+
+		L_VCS2toVCS1 = 12.625 * 0.0254
+		A_VCS2toVCS1 = ringArea(32.125*0.0254, 0.0625*0.0254)
+
+		L_VCS1toMT = 15.375 * 0.0254
+		A_VCS1toMT = ringArea(30.63*0.0254, 0.04*0.0254)
+
+		L_MTtoSFT = 3.8 * 0.0254
+		A_MTtoSFT = ringArea(3.24*0.0254, 0.02*0.0254)
+
 
 		# Calculating heat loads for each junction
-		#T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
-		LFlexToMT = LFlexH(T2,T3,L_MTLargeFlex,T_G10,k_G10)
-		SFlexToMT = SFlexH(T2,T3,L_MTSmallFlex,T_G10,k_G10)
-		LFlexToVCS1 = LFlexH(T3,T5,L_VCS1LargeFlex,T_G10,k_G10)
-		#LFlexToVCS2 = LFlexH(T4,T5,L_VCS2LargeFlex,T_G10,k_G10)
-		SFlexToVCS2 = SFlexH(T4,T5,L_VCS2SmallFlex,T_G10,k_G10)
-		MTAxFlextoVCS1 = AxFlexH(T2,T3,L_MTAxFlex,T_G10,k_G10)
-		if (T1 != T2):
-			SFTFlexToMT = SFTFlex(T1,T2,L_SFTFLex,T_G10,k_G10)
-		else:
-			SFTFlexToMT = 0
+		# T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
+		warp = True
 
-		flexCondLoad1 = 7*SFTFlexToMT+insLoading*insNum
-		flexCondLoad2in = 6*(LFlexToMT+SFlexToMT)+3*MTAxFlextoVCS1
-		flexCondLoad2out = -7*SFTFlexToMT \
-			-(SFTVent12+SFTFill12)
-		flexCondLoad3in = 6*(LFlexToVCS1)
-		flexCondLoad3out = -6*(LFlexToMT+ SFlexToMT)-3*MTAxFlextoVCS1
-		flexCondLoad4in = 6*(SFlexToVCS2)
-		flexCondLoad4out = -6*(LFlexToVCS1)
+		FluxToVCS2 = HeatFlux_G10(T4, T5, A_ShelltoVCS2/L_ShelltoVCS2, warp=warp)
+		FluxToVCS1 = HeatFlux_G10(T3,T4,A_VCS2toVCS1/L_VCS2toVCS1, warp=warp) 	#VCS1 ->VCS2
+		FluxToMT = HeatFlux_G10(T2,T3,A_VCS1toMT/L_VCS1toMT, warp=warp) 		#MT ->VCS1
+
+		if (T1 != T2):
+			FluxToSFT = HeatFlux_G10(T1,T2, A_MTtoSFT/L_MTtoSFT, warp=warp)
+		else:
+			FluxToSFT = 0
+
+		# SFT
+		flexCondLoad1 = FluxToSFT
+
+		# MT
+		flexCondLoad2in = FluxToMT
+		flexCondLoad2out = -1*FluxToSFT -(SFTVent12+SFTFill12)
+		# flexCondLoad2in /= flexFactor #playing with improved flexures
+
+		# VCS1
+		flexCondLoad3in = FluxToVCS1
+		flexCondLoad3out = -1*FluxToMT #VCS1->MT
+
+		# VCS2
+		flexCondLoad4in = FluxToVCS2
+		flexCondLoad4out = -1*FluxToVCS1 #VCS 2 -> VCS1 connection
 
 	#--------------------------------------------------------------------------
 	# Making the final calculations
