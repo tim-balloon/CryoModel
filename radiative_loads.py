@@ -19,7 +19,7 @@ sigma = 5.6704E-12   #[J/s*cm^2*K^4]
 
 def toy_filter_load(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, config='TNG', insNum = 1.0):
 
-	if config == 'TNG':
+	if config == 'TNG' or config=='TIM':
 
 		# filter diameter taken from Galitzki's thesis
 		d_filter_VCS2 = 4.5 * 2.54  # cm
@@ -45,17 +45,17 @@ def mli_rad_keller(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell,
 
 	SFT_Area, MT_Area, VCS1_Area, VCS2_Area = areas.load_areas(config=config, insNum = insNum)
 
-	if config == 'TNG':
+	if config == 'TNG' or config=='TIM':
 
 		# number of layers, from Galitzki thesis
 		N1 = 15
 		N2 = 25
-		NMT = 5
+		NMT = 10
 
 		# layers per cm
 		N1_s = 20
 		N2_s = 20
-		NMT_s = 5
+		NMT_s = 20
 
 		Rad_VCS1 = VCS1_Area*1e-4* mli_keller.P_tot(p_ins1, N1, N1_s, T_VCS2, T_VCS1, e_r = e_Al)
 		Rad_VCS2 = VCS2_Area*1e-4* mli_keller.P_tot(p_ins2, N2, N2_s, T_Shell, T_VCS2, e_r = e_Al)
@@ -143,7 +143,7 @@ def MLIEmiss(Tc, Th, N, alpha, beta):
 
 def rad_load(T_SFT, T_MT, T_VCS1,T_VCS2,T_Shell, e_Al=0.15, alpha=0.15, beta=4.0e-3, config = 'theo', insNum = 6.0):
 
-	if config == 'TNG':
+	if config == 'TNG'  or config=='TIM':
 		N1 = 0 #MLI layers around SFT
 		N2 = 5
 		N3 = 15

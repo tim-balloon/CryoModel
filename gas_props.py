@@ -40,8 +40,8 @@ def holdtime(mdot, numLiters = 1000):
 
 	He_density = 125 #[g/l]
 	#Seconds in a day
-	spd = 24*3600;    #[s/day]
-	days = numLiters*He_density/mdot/spd;
+	spd = 24*3600    #[s/day]
+	days = numLiters*He_density/mdot/spd
 	return days
 
 def CpInt(T_min, T_max, T_gas, Cp_gas):
@@ -106,7 +106,7 @@ def helium_cp(t_in, phase = 'gas'):
 
 	c = helium_cp(t_in)
 	'''
-	
+
 	if phase == 'gas':
 		t0 = np.array([4.2, 5, 10, 20, 30, 40, 50, 300])
 		c0 = 1e3*np.array([7.07, 6.32, 5.43, 5.25, 5.23, 5.21, 5.20, 5.20])

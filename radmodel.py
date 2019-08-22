@@ -44,7 +44,7 @@ def isarr(v):
         return True
     return False
 
-def uprint(v, unit='W', fmt='%12.6f', cd=False):
+def uprint(v, unit='W', fmt='%12.3f', cd=False):
     if v is None:
         return '--- %s' % (unit)
 
