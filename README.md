@@ -1,6 +1,6 @@
 # CryoModel
 
-A cryogenic thermal modeling code for TIM, inherited from the SPIDER collaboration. 
+A cryogenic thermal modeling code adapted for TIM cryostat, the original version is kindly provided by the SPIDER collaboration. 
 
 SPIDER code: Z. Kermish, W.C. Jones, A.S. Rahlin, A.S. Bergman (Princeton)
 
