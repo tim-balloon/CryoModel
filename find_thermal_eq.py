@@ -3,12 +3,16 @@
 """
 find_thermal_eq.py
 
-Created by Zigmund Kermish on 2014-01-20.  Heavily copy/pasted from Jon Gudmundsson's Matlab code, which was based
-on Bill Jones' IDL code
+Created by Zigmund Kermish on 2014-01-20.
+Heavily copy/pasted from Jon Gudmundsson's Matlab code,
+which was based on Bill Jones' IDL code
 """
 
 import sys
 import os
+
+from time import time
+
 from radiative_loads import *
 from conductive_loads import *
 from gas_props import *
@@ -56,11 +60,11 @@ def find_equilibrium(args):
 
 	#Calculating the starting net heat load on VCS1 and VCS2
 	VCS1 = 1
-	VCS2 = 2
+	VCS2 = 1.1
 
 	#setting initial temperatures and flows -20C = 253.15
 	if config == 'TNG' or config=='TIM':
-		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 66.7, 191.4, args.VVTemp)
+		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 60, 170, args.VVTemp)
 	else:
 		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
 
@@ -84,6 +88,8 @@ def find_equilibrium(args):
 	#window_MT =  insNum*0.05 #50 mW estimate
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	#capLoad = 0.008 #~50mW / 6 for capillary box
+
+
 
 	if config != 'TNG' and config!='TIM':
 
@@ -109,29 +115,30 @@ def find_equilibrium(args):
 			opts = {}
 		M = RadiativeModel(**opts)
 
+	T0 = time()
 
-
-	print('T_Shell', T_Shell)
+	print('Configuration: %s'%config)
+	print('T_Shell: %.1f K'%T_Shell)
 
 	#Counter and maximum number of iterations
 	n = 1
 	maxIter = 500
 
 	#tolerance
-	eps = 0.02 #0.02
+	eps = 0.005 #0.02
 	sfteps = 0.0005
-	DeltaT = 0.02
-	#gain = 0.025
-	#gain = 0.05
-	gain = 0.03
+
+	gain = 2
 
 	while n <= maxIter:
 
 		if (abs(VCS1) > abs(VCS2)):
-			T_VCS1 = T_VCS1 + DeltaT*VCS1/gain
+			T_VCS1 = T_VCS1 + VCS1*gain
 		else:
-			T_VCS2 = T_VCS2 + DeltaT*VCS2/gain
+			T_VCS2 = T_VCS2 + VCS2*gain
 
+		# print(VCS1, VCS2,)
+		# print(T_VCS1, T_VCS2)
 		#update loads
 
 		#Radiative loads and MLI conductivity estimates
@@ -333,6 +340,8 @@ def find_equilibrium(args):
 
 			print('--------')
 			print('mdot (g/s): %1.3f, Holdtime (days): %1.3f ' % (mdot, holdtime(mdot, numLiters = numLiters)))
+			print('boil-off rate (L/day): %1.3f ' % (numLiters/holdtime(mdot, numLiters=numLiters)))
+
 			print('SLPM (from MT/l): %1.3f ' % (mdot2SLPM(mdot)))
 			print('SLPM (from MTLoad/l): %1.3f ' % (mdot2SLPM(mdot2)))
 
@@ -382,7 +391,7 @@ def find_equilibrium(args):
 			print('In-band detector loading: %s' % uprint(inband))
 
 			print('--------')
-			print('Number of Iteration: {:d}'.format(n))
+			print('Number of Iteration: {:d}\nRun time: {:.3f} s'.format(n, time()-T0))
 
 			print('--------')
 

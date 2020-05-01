@@ -336,13 +336,15 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 
 	else:
 
-		# sFactor45 = 2.
-		# sFactor34 = 1.5
-		# sFactor23 = 1.
+		if config =='TNG':
+			sFactor45 = 1.
+			sFactor34 = 1.
+			sFactor23 = 1.
 
-		sFactor45 = 2.
-		sFactor34 = 2.
-		sFactor23 = 2.
+		else:
+			sFactor45 = 4.
+			sFactor34 = 4.
+			sFactor23 = 4.
 
 		# A over L ratio from BLAST excel
 		ALHeFill45 = sFactor45* 8.58418E-05 #m
@@ -712,7 +714,9 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 	    flexCondLoad3out, flexCondLoad4in, flexCondLoad4out)
 
 
-	#--------------------------------------------------------------------------
+
+
+
 
 def main():
 	pass

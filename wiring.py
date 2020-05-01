@@ -314,7 +314,7 @@ def wiring_load(t_sft=1.5, t_mt=4.2, t_vcs1=30, t_vcs2=150, t_vv=300,
 	Ptoti = mul_dict(Ptoti_ins, num_inserts)
 
 	H = 2590.6 # LHe enthalpy of vaporization, J/L
-	T = 86400 # seconds/day
+	T = 86400  # seconds/day
 	Lday = mul_dict(Ptot_ins, T/H) # L/day lost per insert
 	Lins = mul_dict(Lday, 16) # L/flight lost per insert
 	Ltot = mul_dict(Lins, num_inserts) # L lost total
