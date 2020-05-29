@@ -13,6 +13,8 @@ import os
 
 from time import time
 
+_this_dir, _this_filename = os.path.split(__file__)
+
 from radiative_loads import *
 from conductive_loads import *
 from gas_props import *

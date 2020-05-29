@@ -12,7 +12,9 @@ import os
 import scipy.integrate as integrate
 import numpy as np
 
-from gas_props import *
+from .gas_props import *
+
+_this_dir, _this_filename = os.path.split(__file__)
 
 
 def ss_low_cv(t_in):
@@ -27,15 +29,15 @@ def ss_low_cv(t_in):
 	n = 1.15
 	return A * t_in**n
 
-T_SS_high, k_SS_high = np.loadtxt('./thermalProp/ss304_cv.txt', unpack = True)
+T_SS_high, k_SS_high = np.loadtxt(_this_dir+'/thermalProp/ss304_cv.txt', unpack = True)
 T_SS_low = np.arange(0.2, 3.9, 0.1)
 k_SS_low = ss_low_cv(T_SS_low)
 T_SS = np.append(T_SS_low, T_SS_high)
 k_SS = np.append(k_SS_low, k_SS_high)
 
-T_G10, k_G10 = np.loadtxt('./thermalProp/g10_cv_combined.txt', unpack = True)
+T_G10, k_G10 = np.loadtxt(_this_dir+'/thermalProp/g10_cv_combined.txt', unpack = True)
 
-T_CF, k_CF = np.loadtxt('./thermalProp/CF_cv.txt', unpack = True)
+T_CF, k_CF = np.loadtxt(_this_dir+'/thermalProp/CF_cv.txt', unpack = True)
 
 
 def llg10warp(t): return -2.64827 + 8.80228*t - 24.8998*t**2 + 41.1625*t**3 - 39.8754*t**4 + 23.1778*t**5 - 7.95635*t**6 + 1.48806*t**7 - .11701*t**8

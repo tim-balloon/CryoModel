@@ -11,7 +11,10 @@ import sys
 import os
 import areas
 import numpy as np
-import mli_keller
+import .mli_keller
+
+_this_dir, _this_filename = os.path.split(__file__)
+
 
 #Stefan-Boltzmann constant
 sigma = 5.6704E-12   #[J/s*cm^2*K^4]
