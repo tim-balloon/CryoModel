@@ -13,7 +13,9 @@ import numpy as np
 import scipy.integrate as integrate
 
 
-T_He, Cp_He = np.loadtxt(this_dir+'/thermalProp/helium_cp.txt', unpack = True)
+_this_dir, _this_filename = os.path.split(__file__)
+
+T_He, Cp_He = np.loadtxt(_this_dir+'/thermalProp/helium_cp.txt', unpack = True)
 
 def mdot2SLPM(mdot):
 	'''

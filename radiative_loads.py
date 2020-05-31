@@ -11,7 +11,7 @@ import sys
 import os
 import areas
 import numpy as np
-import .mli_keller
+import mli_keller
 
 _this_dir, _this_filename = os.path.split(__file__)
 

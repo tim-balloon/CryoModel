@@ -12,7 +12,7 @@ import os
 import scipy.integrate as integrate
 import numpy as np
 
-from .gas_props import *
+from gas_props import *
 
 _this_dir, _this_filename = os.path.split(__file__)
 
@@ -40,9 +40,11 @@ T_G10, k_G10 = np.loadtxt(_this_dir+'/thermalProp/g10_cv_combined.txt', unpack =
 T_CF, k_CF = np.loadtxt(_this_dir+'/thermalProp/CF_cv.txt', unpack = True)
 
 
-def llg10warp(t): return -2.64827 + 8.80228*t - 24.8998*t**2 + 41.1625*t**3 - 39.8754*t**4 + 23.1778*t**5 - 7.95635*t**6 + 1.48806*t**7 - .11701*t**8
+def llg10warp(t): return -2.64827 + 8.80228*t - 24.8998*t**2 + 41.1625*t**3 \
+- 39.8754*t**4 + 23.1778*t**5 - 7.95635*t**6 + 1.48806*t**7 - .11701*t**8
 
-def llg10norm(t): return -4.1236 + 13.788*t - 26.068*t**2 + 26.272*t**3 - 14.663*t**4 + 4.4954*t**5 - 0.6905*t**6 + 0.0397*t**7
+def llg10norm(t): return -4.1236 + 13.788*t - 26.068*t**2 + 26.272*t**3 \
+- 14.663*t**4 + 4.4954*t**5 - 0.6905*t**6 + 0.0397*t**7
 
 def mfg_k(f):
 	def g(t):

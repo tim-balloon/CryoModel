@@ -1,4 +1,3 @@
 from . import *
-from . import conductive_loads
-from . import radiative_loads
-from . import find_thermal_eq
+
+_this_dir, _this_filename = os.path.split(__file__)
