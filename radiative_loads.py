@@ -22,13 +22,21 @@ sigma = 5.6704E-12   #[J/s*cm^2*K^4]
 
 def toy_filter_load(T_SFT, T_MT, T_VCS1, T_VCS2, T_Shell, config='TNG', insNum = 1.0):
 
-	if config == 'TNG' or config=='TIM':
-
+	if config == 'TNG':
 		# filter diameter taken from Galitzki's thesis
-		d_filter_VCS2 = 4.5 * 2.54  # cm
-		d_filter_VCS1 = 4.5 * 2.54  # cm
-		d_filter_MT = 4.125 * 2.54  # cm
+		d_filter_VCS2 = 4.5 * 2.54  # in cm
+		d_filter_VCS1 = 4.5 * 2.54  # in cm
+		d_filter_MT = 4.125 * 2.54  # in cm
 
+	elif config=='TIM':
+
+		# updated to 6 inches
+		d_filter_VCS2 = 6.5 * 2.54  # in cm
+		d_filter_VCS1 = 6.5 * 2.54  # in cm
+		d_filter_MT = 6 * 2.54  # in cm
+
+
+	if config == 'TNG' or config == 'TIM':
 		effi_filter_VCS2 = 0.9
 		effi_filter_VCS1 = 0.9
 		effi_filter_MT = 0.9
