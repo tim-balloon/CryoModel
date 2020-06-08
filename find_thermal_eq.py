@@ -3,12 +3,18 @@
 """
 find_thermal_eq.py
 
-Created by Zigmund Kermish on 2014-01-20.  Heavily copy/pasted from Jon Gudmundsson's Matlab code, which was based
-on Bill Jones' IDL code
+Created by Zigmund Kermish on 2014-01-20.
+Heavily copy/pasted from Jon Gudmundsson's Matlab code,
+which was based on Bill Jones' IDL code
 """
 
 import sys
 import os
+
+from time import time
+
+_this_dir, _this_filename = os.path.split(__file__)
+
 from radiative_loads import *
 from conductive_loads import *
 from gas_props import *
@@ -44,6 +50,10 @@ def find_equilibrium(args):
 		config = 'TNG'
 		insNum = 1
 		numLiters = 250.0
+	elif args.TIM:
+		config = 'TIM'
+		insNum = 1
+		numLiters = 250.0
 	else:
 		config = 'theo'
 		insNum = 6
@@ -52,18 +62,18 @@ def find_equilibrium(args):
 
 	#Calculating the starting net heat load on VCS1 and VCS2
 	VCS1 = 1
-	VCS2 = 2
+	VCS2 = 1.1
 
 	#setting initial temperatures and flows -20C = 253.15
-	if config == 'TNG':
-		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 66.7, 191.4, args.VVTemp)
+	if config == 'TNG' or config=='TIM':
+		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.47, 4.2, 60, 170, args.VVTemp)
 	else:
 		(T_SFT ,T_MT , T_VCS1 , T_VCS2, T_Shell) = (1.5, 4.3, 40., 110., args.VVTemp)
 
 	mdot = 0.030
 
 	#Cooling efficiencies
-	if config == 'TNG':
+	if config == 'TNG'  or config=='TIM':
 		effi_23 = 0.8 # 1    #cooling efficiency between MT and VCS1
 		effi_34 = 0.8 # 0.9  #cooling efficiency between VCS1 and VCS2
 
@@ -81,7 +91,9 @@ def find_equilibrium(args):
 	#window_VCS1 = insNum*0.7 # 0.7W estimate from Theo paper #/6
 	#capLoad = 0.008 #~50mW / 6 for capillary box
 
-	if config != 'TNG':
+
+
+	if config != 'TNG' and config!='TIM':
 
 		if args.windowsOpen:
 			capLoad = 0.123 #~2SLPM
@@ -105,35 +117,36 @@ def find_equilibrium(args):
 			opts = {}
 		M = RadiativeModel(**opts)
 
+	T0 = time()
 
-
-	print('T_Shell', T_Shell)
+	print('Configuration: %s'%config)
+	print('T_Shell: %.1f K'%T_Shell)
 
 	#Counter and maximum number of iterations
 	n = 1
 	maxIter = 500
 
 	#tolerance
-	eps = 0.02 #0.02
+	eps = 0.005 #0.02
 	sfteps = 0.0005
-	DeltaT = 0.02
-	#gain = 0.025
-	#gain = 0.05
-	gain = 0.03
+
+	gain = 2
 
 	while n <= maxIter:
 
 		if (abs(VCS1) > abs(VCS2)):
-			T_VCS1 = T_VCS1 + DeltaT*VCS1/gain
+			T_VCS1 = T_VCS1 + VCS1*gain
 		else:
-			T_VCS2 = T_VCS2 + DeltaT*VCS2/gain
+			T_VCS2 = T_VCS2 + VCS2*gain
 
+		# print(VCS1, VCS2,)
+		# print(T_VCS1, T_VCS2)
 		#update loads
 
 		#Radiative loads and MLI conductivity estimates
 
 		#toy model for TNG filter loads (from excel model)
-		if config == 'TNG':
+		if config == 'TNG'  or config=='TIM':
 			window_MT, window_VCS1, window_VCS2 = toy_filter_load(T_SFT, T_MT, \
 				T_VCS1, T_VCS2, T_Shell, config=config, \
 				insNum=insNum)
@@ -183,20 +196,23 @@ def find_equilibrium(args):
 
 		# Conduction through electrical wiring
 		wdict = wiring_load(t_sft=T_SFT, t_mt=T_MT, t_vcs1=T_VCS1,
-							t_vcs2=T_VCS2, t_vv=T_Shell, num_inserts=insNum)
+							t_vcs2=T_VCS2, t_vv=T_Shell, num_inserts=insNum, verbose=False)
+
 		wire_VCS1_in = wdict['vv_vcs1']
 		wire_VCS1_out = wdict['vcs1_mt']
 		wire_MT = wdict['vcs1_mt']
 
 		# CONDUCTION through flexures and stainless tubes
-		(tubeCondLoad1, tubeCondLoad2, tubeCondLoad4In, tubeCondLoad4Out,
+		(tubeCondLoad1, tubeCondLoad2In, tubeCondLoad2Out, tubeCondLoad3In,
+			tubeCondLoad3Out, tubeCondLoad4In, tubeCondLoad4Out,
 			flexCondLoad1, flexCondLoad2In, flexCondLoad2out, flexCondLoad3In,
 			flexCondLoad3Out, flexCondLoad4In, flexCondLoad4Out) = cond_loads(T_SFT,T_MT,T_VCS1,T_VCS2,T_Shell,
 				sftPumped,sftEmpty,insNum, config = config, flexFactor = args.flexFactor)
 
 		cfact = 1.
 		tubeCondLoad_SFT = cfact*tubeCondLoad1
-		tubeCondLoad_MT = cfact*tubeCondLoad2
+		tubeCondLoad_MT = cfact*(tubeCondLoad2In + tubeCondLoad2Out)
+		tubeCondLoad_VCS1 = cfact*(tubeCondLoad3In + tubeCondLoad3Out)
 		tubeCondLoad_VCS2 = cfact*(tubeCondLoad4In + tubeCondLoad4Out)
 
 		flexCondLoad_SFT = cfact*flexCondLoad1
@@ -224,26 +240,27 @@ def find_equilibrium(args):
 
 		VCS2excess = args.VCS2Excess #excess load on vcs2 in watts
 
-
-		# MT is the net	load on the main tank
-		# MTLoad is the input load on the main tank
-		# MTLoad = MT - SFTLoad
-		MT = capLoad + Rad_MT + window_MT  \
-				- Rad_SFTtoMT
-		MT += wire_MT
-		MT += (tubeCondLoad_MT + flexCondLoad_MT - tubeCondLoad_SFT)
-		MT += MTexcess + MTexcess2 + MTexcessShell
-
-		MTLoad = capLoad + Rad_MT + window_MT \
-				+ cfact*flexCondLoad2In + tubeCondLoad_MT \
-				+ MTexcess + MTexcess2 + MTexcessShell \
-				+ wire_MT
+		n_LNA = 5
+		LNA = n_LNA * 5e-3
 
 		SFTLoad = Rad_SFT
 		SFTLoad += (tubeCondLoad_SFT + flexCondLoad_SFT)
 
+		# MT is the net	load on the main tank
+		# MTLoad is the input load on the main tank
+		# MT = MTLoad - SFTLoad
+
+		MTLoad = capLoad + Rad_MT + window_MT \
+				+ cfact*flexCondLoad2In + tubeCondLoad_MT \
+				+ MTexcess + MTexcess2 + MTexcessShell \
+				+ wire_MT + LNA
+
+		MT = MTLoad - SFTLoad
+
+
+
 		#cryocooler parameters:
-		if (args.icsCoolers + args.ocsCoolers) > 0 : # if there is cryo cooler
+		if (args.icsCoolers + args.ocsCoolers) > 1e-6 : # if there is cryo cooler
 			T, lift = np.loadtxt('./cryoCooler/cryotel_GT_23C.txt', unpack = True, delimiter = ',')
 			p = np.polyfit(T, lift, 1) #fitting a line for now since the cooling curve is close
 			lowT = np.array([20, 30, 40])
@@ -260,25 +277,26 @@ def find_equilibrium(args):
 				-Rad_MT - RadSFTtoVCS1 - gasCoolingVCS1 - icsCryocooler \
 				-MTexcess
 
-		VCS1_load = Rad_VCS1 + window_VCS1
-
+		VCS1 += flexCondLoad_VCS1 + tubeCondLoad_VCS1 + VCS1excess + VCS1excessShell
 		VCS1 += wire_VCS1_in - wire_VCS1_out
+
+
+		VCS1_load = Rad_VCS1 + window_VCS1
+		VCS1_load += cfact*(flexCondLoad3In + tubeCondLoad3In)
+		VCS1_load += VCS1excess + VCS1excessShell
 		VCS1_load += wire_VCS1_in
 
-		VCS1 += flexCondLoad_VCS1
-		VCS1 += VCS1excess + VCS1excessShell
-		VCS1_load += cfact*flexCondLoad3In + VCS1excess + VCS1excessShell
 
 
 
 		VCS2 = Rad_VCS2  + window_VCS2 \
 				-Rad_VCS1 - gasCoolingVCS2 - ocsCryocooler - MTexcess2 - VCS1excess
-		VCS2_load = Rad_VCS2  + window_VCS2
-
-		VCS2 +=  flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
+		VCS2 += flexCondLoad_VCS2 + tubeCondLoad_VCS2 - tubeCondLoad_MT
 		VCS2 += VCS2excess
 
-		VCS2_load += cfact*flexCondLoad4In + cfact*tubeCondLoad4In
+
+		VCS2_load = Rad_VCS2  + window_VCS2
+		VCS2_load += cfact*(flexCondLoad4In + tubeCondLoad4In)
 		VCS2_load += VCS2excess
 
 		mdot = MT / l
@@ -291,7 +309,7 @@ def find_equilibrium(args):
 			print('n={:d}'.format(n))
 
 			print('Loadings')
-			print('           |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
 			print('Aperture   | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 				.format(0.0, window_MT, window_VCS1, window_VCS2))
 			print('Radiative  | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
@@ -299,7 +317,9 @@ def find_equilibrium(args):
 			print('Structural | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 				.format(cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
 			print('Plumbing   | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
-				.format(tubeCondLoad_SFT, tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
+				.format(tubeCondLoad_SFT, tubeCondLoad_MT, cfact*tubeCondLoad3In, cfact*tubeCondLoad4In))
+			print('Wiring     | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+				.format(0, wire_MT, wire_VCS1_in, 0))
 			print('--------')
 			print('Total      | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
 			 	.format(SFTLoad, MTLoad, VCS1_load, VCS2_load))
@@ -314,29 +334,31 @@ def find_equilibrium(args):
 		if (abs(VCS1) < eps and abs(VCS2) < eps):
 
 			print('-------------------')
-			print('ICS cryocooler power: %1.3f W' % icsCryocooler)
-			print('ICS gas cooling power: %1.3f W' % gasCoolingVCS1)
+			print('VCS1cryocooler power: %1.3f W' % icsCryocooler)
+			print('VCS1gas cooling power: %1.3f W' % gasCoolingVCS1)
 
-			print('OCS cryocooler power: %1.3f W' % ocsCryocooler)
-			print('OCS gas cooling power: %1.3f W' % gasCoolingVCS2)
+			print('VCS2 cryocooler power: %1.3f W' % ocsCryocooler)
+			print('VCS2 gas cooling power: %1.3f W' % gasCoolingVCS2)
 
+			print('--------')
 			print('mdot (g/s): %1.3f, Holdtime (days): %1.3f ' % (mdot, holdtime(mdot, numLiters = numLiters)))
+			print('boil-off rate (L/day): %1.3f ' % (numLiters/holdtime(mdot, numLiters=numLiters)))
+
 			print('SLPM (from MT/l): %1.3f ' % (mdot2SLPM(mdot)))
 			print('SLPM (from MTLoad/l): %1.3f ' % (mdot2SLPM(mdot2)))
-			print('--------')
+
 			print('MT power: %1.3f W' % (MT))
 			print('MTLoad power: %1.3f W' % (MTLoad))
 			print('--------')
-			print('SFT Loading: %1.2e W' % (SFTLoad))
-
+			print('SFT Loading: %s' % uprint(SFTLoad))
 			#print summary
 			print('--------')
 			print(' Stage | Temperature ')
-			print(' OCS   | %1.2f K ' % T_VCS2)
-			print(' ICS   | %1.2f K ' % T_VCS1)
+			print(' VCS2  | %1.2f K ' % T_VCS2)
+			print(' VCS1  | %1.2f K ' % T_VCS1)
 			print('--------')
 			print('Loads')
-			print('           |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
 			print('Aperture   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (0.0, window_MT, window_VCS1, window_VCS2))
 			print('Radiative  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
@@ -345,13 +367,15 @@ def find_equilibrium(args):
 			print('Structural | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
 				% (cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
 			print('Plumbing   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
-				% (tubeCondLoad_SFT, tubeCondLoad_MT, 0, cfact*tubeCondLoad4In))
+				% (tubeCondLoad_SFT, tubeCondLoad_MT, cfact*tubeCondLoad3In, cfact*tubeCondLoad4In))
+			print('Wiring     | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+				.format(0, wire_MT, wire_VCS1_in, 0))
 			print('--------')
 			print('Total      | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
 
 			print('--------')
 			print('Loads distribution')
-			print('           |   SFT      |    MT      |   ICS      |   OCS      |')
+			print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
 			print('Aperture   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
 				.format(0.0, window_MT/MTLoad*100, window_VCS1/VCS1_load*100, window_VCS2/VCS2_load*100))
 			print('Radiative  |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
@@ -360,13 +384,16 @@ def find_equilibrium(args):
 			print('Structural |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
 				.format(cfact*flexCondLoad_SFT/SFTLoad*100, cfact*flexCondLoad2In/MTLoad*100, cfact*flexCondLoad3In/VCS1_load*100, cfact*flexCondLoad4In/VCS2_load*100))
 			print('Plumbing   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
-				.format(tubeCondLoad_SFT/SFTLoad*100, tubeCondLoad_MT/MTLoad*100, 0, cfact*tubeCondLoad4In/VCS2_load*100))
+				.format(tubeCondLoad_SFT/SFTLoad*100, tubeCondLoad_MT/MTLoad*100, cfact*tubeCondLoad3In/VCS1_load*100, cfact*tubeCondLoad4In/VCS2_load*100))
+			print('Wiring     |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
+				.format(0, wire_MT/MTLoad*100, wire_VCS1_in/VCS1_load*100, 0./VCS2_load*100))
+
 			print('--------')
 
 			print('In-band detector loading: %s' % uprint(inband))
 
 			print('--------')
-			print('Number of Iteration: {:d}'.format(n))
+			print('Number of Iteration: {:d}\nRun time: {:.3f} s'.format(n, time()-T0))
 
 			print('--------')
 
@@ -393,9 +420,10 @@ if __name__ == '__main__':
 	parser.add_argument('-theo_alt1', dest='theo_alt1', action='store_true', help='Run theo model with as built dims, but connected only to VCS1 intercept')
 	parser.add_argument('-lloro', dest='lloro', action='store_true', help='Theo model with large flexure intercept only to VCS1, equivalent to lloro model')
 	parser.add_argument('-TNG', dest='TNG', action='store_true', help='Run TNG model')
+	parser.add_argument('-TIM', dest='TIM', action='store_true', help='Run TIM model')
 	parser.add_argument('-flexFact', dest = 'flexFactor', action = 'store', type=float, default=1.0, help='Reduction factor in flexure conduction')
-	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = int, default = 0.0, help='Number of OCS coolers')
-	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = int, default = 0.0, help='Number of ICS coolers')
+	parser.add_argument('-ocsCoolers', dest = 'ocsCoolers', action = 'store', type = float, default = 0.0, help='Number of VCS2 coolers')
+	parser.add_argument('-icsCoolers', dest = 'icsCoolers', action = 'store', type = float, default = 0.0, help='Number of VCS1 coolers')
 	parser.add_argument('-mylarWindow', dest = 'mylarWindow', action = 'store_true', help='Use a 10-um Mylar window instead of the default 1/8" PE')
 	parser.add_argument('-shaderWindow', dest = 'shaderWindow', action = 'store_true', help='Use a PE window with a 300K shader.')
 	parser.add_argument('-keller', dest = 'keller', action = 'store_true', help='Use the keller MLI model')

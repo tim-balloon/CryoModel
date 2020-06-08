@@ -98,10 +98,14 @@ def load_areas(config='theo', insNum = 6.0):
 		VCS2_cyl = 2*np.pi*VCS2_OR*h_VCS2    #[cm**2]
 		VCS2_Area = VCS2_diskbottom + VCS2_disktop + VCS2_cyl   #[cm**2]
 
-	elif config =='TNG':
+	elif config =='TNG' or config=='TIM':
 
 		#Area of the SFT, estimate based on SolidWorks drawings of testCryostat
-		SFT_Area = 314 #[cm**2] for a 5cm ball with Volume of ~500mL
+		SFT_OD = 33
+		SFT_H = 26
+
+		SFT_Area = (2*np.pi*(SFT_OD**2/4) + np.pi*SFT_OD*SFT_H)*2.54**2 # [cm**2] cold box surface area
+		# SFT_Area = 314 #[cm**2] 314 cm**2 for a 5cm ball with Volume of ~500mL
 
 		#Area of MT from TNG Excel
 		MT_can = 2827.84   #[in**2]
