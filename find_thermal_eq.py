@@ -127,7 +127,7 @@ def find_equilibrium(args):
 	maxIter = 500
 
 	#tolerance
-	eps = 0.005 #0.02
+	eps = 0.05 #0.02
 	sfteps = 0.0005
 
 	gain = 2
@@ -421,7 +421,8 @@ def find_equilibrium(args):
 			print('In-band detector loading: %s' % uprint(inband))
 
 			print('--------')
-			print('Number of Iteration: {:d}\nRun time: {:.3f} s'.format(n, time()-T0))
+			print('Number of Iteration: {:d}\nRun time: {:.3f} s\neps: {:.3f} W'\
+			.format(n, time()-T0, np.max(np.abs([VCS1,VCS2]))) )
 
 			print('--------')
 
