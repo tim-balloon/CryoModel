@@ -357,23 +357,51 @@ def find_equilibrium(args):
 			print(' VCS2  | %1.2f K ' % T_VCS2)
 			print(' VCS1  | %1.2f K ' % T_VCS1)
 			print('--------')
-			print('Loads')
-			print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
-			print('Aperture   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
-				% (0.0, window_MT, window_VCS1, window_VCS2))
-			print('Radiative  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
-				% (Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2))
-			# print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
-			print('Structural | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
-				% (cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
-			print('Plumbing   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
-				% (tubeCondLoad_SFT, tubeCondLoad_MT, cfact*tubeCondLoad3In, cfact*tubeCondLoad4In))
-			print('Wiring     | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
-				.format(0, wire_MT, wire_VCS1_in, 0))
-			print('--------')
-			print('Total      | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
+			if not args.noPrefix:
+				def uprint8(fs):
+					fout = ()
+					for f in fs:
+						fout = fout + (uprint(f, fmt='%8.2f'),)
+					return fout
 
-			print('--------')
+				print('Loads')
+				print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
+				print('Aperture   |%s |%s |%s |%s |' \
+					% uprint8((0, window_MT, window_VCS1, window_VCS2)))
+				print('Radiative  |%s |%s |%s |%s |' \
+					% uprint8((Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2)))
+				# print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
+				print('Structural |%s |%s |%s |%s |' \
+					% uprint8((cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, \
+					cfact*flexCondLoad3In, cfact*flexCondLoad4In)))
+				print('Plumbing   |%s |%s |%s |%s |' \
+					% uprint8((tubeCondLoad_SFT, tubeCondLoad_MT, \
+					cfact*tubeCondLoad3In, cfact*tubeCondLoad4In)))
+				print('Wiring     |%s |%s |%s |%s |'\
+					% uprint8((0, wire_MT, wire_VCS1_in, 0)))
+				print('--------')
+				print('Total      |%s |%s |%s |%s |' \
+				% uprint8((SFTLoad, MTLoad, VCS1_load, VCS2_load)))
+
+				print('--------')
+			else:
+				print('Loads')
+				print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
+				print('Aperture   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+					% (0, window_MT, window_VCS1, window_VCS2))
+				print('Radiative  | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+					% (Rad_SFT, Rad_MT, Rad_VCS1, Rad_VCS2))
+				# print('MLI       | %1.2e W | %1.2e W | %1.2e W |' % (0.0, mli_load_VCS1, mli_load_VCS2))
+				print('Structural | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+					% (cfact*flexCondLoad_SFT, cfact*flexCondLoad2In, cfact*flexCondLoad3In, cfact*flexCondLoad4In))
+				print('Plumbing   | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' \
+					% (tubeCondLoad_SFT, tubeCondLoad_MT, cfact*tubeCondLoad3In, cfact*tubeCondLoad4In))
+				print('Wiring     | {:1.2e} W | {:1.2e} W | {:1.2e} W | {:1.2e} W |'\
+					.format(0, wire_MT, wire_VCS1_in, 0))
+				print('--------')
+				print('Total      | %1.2e W | %1.2e W | %1.2e W | %1.2e W |' % (SFTLoad, MTLoad, VCS1_load, VCS2_load))
+
+				print('--------')
 			print('Loads distribution')
 			print('           |   SFT      |    MT      |   VCS1     |   VCS2     |')
 			print('Aperture   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |  {:05.2f} %   |'\
@@ -443,7 +471,8 @@ if __name__ == '__main__':
 							default=1e-4, help='VCS2 interstitial pressure')
 	parser.add_argument('-verbose', dest='verbose', action='store_true',
 							help='Print step by step quantities.')
-
+	parser.add_argument('-noPrefix', dest='noPrefix', action='store_true',
+							help='Do not use prefix for output.')
 
 
 	args = parser.parse_args()

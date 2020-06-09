@@ -49,7 +49,7 @@ def uprint(v, unit='W', fmt='%12.3f', cd=False):
         return '--- %s' % (unit)
 
     if v == 0:
-        return '%s %s' % (fmt, unit) % (v)
+        return '%s  %s' % (fmt, unit) % (v)
 
     udict = {-24  : 'y',  # yocto
               -21 : 'z', # zepto
