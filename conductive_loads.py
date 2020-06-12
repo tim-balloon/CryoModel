@@ -304,14 +304,15 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		  # the stainless steel tubing will be conducted into the SFT rather than
 		  # intercepted by the main tank. The theory being that the superfluid will
 		  # creep up into the plumbing and intercept the heat...
-			SFTFill12 = SFTFill12 + SSSFTTube(T2,T4,L_SFTFill_24,T_SS,k_SS)
-			SFTVent12 = SFTVent12 + SSSFTTube(T2,T4,L_SFTVent_24,T_SS,k_SS)
-			SFTFill24 = 0
-			SFTVent24 = 0
+			sftr = 0.0
+			SFTFill24 = sftr*SSSFTTube(T2,T4,L_SFTFill_24,T_SS,k_SS)
+			SFTVent24 = sftr*SSSFTTube(T2,T4,L_SFTVent_24,T_SS,k_SS)
+			SFTFill12 = SFTFill12 + (1-sftr)*SSSFTTube(T2,T4,L_SFTFill_24,T_SS,k_SS)
+			SFTVent12 = SFTVent12 + (1-sftr)*SSSFTTube(T2,T4,L_SFTVent_24,T_SS,k_SS)
 		else:
 		  # If the SFT is pumped but empty or not pumped and at 4.2 K we expect the
 		  # copper strain relief to catch sftr of the heat load
-			sftr = 0.5
+			sftr = 1
 			SFTFill24 = sftr*SSSFTTube(T2,T4,L_SFTFill_24,T_SS,k_SS)
 			SFTVent24 = sftr*SSSFTTube(T2,T4,L_SFTVent_24,T_SS,k_SS)
 			SFTFill12 = SFTFill12 + (1-sftr)*SSSFTTube(T2,T4,L_SFTFill_24,T_SS,k_SS)
