@@ -335,9 +335,10 @@ def find_equilibrium(args):
 
 			print('-------------------')
 			print('VCS1cryocooler power: %1.3f W' % icsCryocooler)
-			print('VCS1gas cooling power: %1.3f W' % gasCoolingVCS1)
-
 			print('VCS2 cryocooler power: %1.3f W' % ocsCryocooler)
+
+			print('--------')
+			print('VCS1 gas cooling power: %1.3f W' % gasCoolingVCS1)
 			print('VCS2 gas cooling power: %1.3f W' % gasCoolingVCS2)
 
 			print('--------')
