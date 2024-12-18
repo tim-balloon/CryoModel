@@ -1641,6 +1641,15 @@ def model150to90(model):
     return {'filter_stack': fstack, 'filter_offsets': foff}
 
 models = {
+    'tim_mock': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30'],
+                         '4k':[''],
+                         '2k':[''],
+                         },
+        'filter_offsets': {},
+        },
     'default': {
         'filter_stack': {'window': ['poly_window'],
                          'vcs2':['c15','c15','c30','c30'],

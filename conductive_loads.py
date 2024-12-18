@@ -17,7 +17,7 @@ from gas_props import *
 _this_dir, _this_filename = os.path.split(__file__)
 
 
-def ss_low_cv(t_in):
+def ss_low_cv(T):
 	# low temperature conductivity stainless steel 316 in [W/m/K]
 	# taken from M. Barucci, L. Lolli, L. Risegari, G. Ventura
 	# Cryogenics 48 (2008) 166ñ168
@@ -27,7 +27,7 @@ def ss_low_cv(t_in):
 
 	A = 0.0556
 	n = 1.15
-	return A * t_in**n
+	return A * T**n
 
 T_SS_high, k_SS_high = np.loadtxt(_this_dir+'/thermalProp/ss304_cv.txt', unpack = True)
 T_SS_low = np.arange(0.2, 3.9, 0.1)
@@ -339,27 +339,37 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		else:
 			insLoading = 0
 
-	else:
-
-		if config =='TNG':
-			sFactor45 = 1.
-			sFactor34 = 1.
-			sFactor23 = 1.
-
-		else:
-			sFactor45 = 4.
-			sFactor34 = 4.
-			sFactor23 = 4.
-
+	elif config=='TNG':
 		# A over L ratio from BLAST excel
-		ALHeFill45 = sFactor45* 8.58418E-05 #m
-		ALHeFill34 = sFactor34* 7.24358E-05 #m
-		ALHeFill23 = sFactor23* 9.20346E-05 #m
+		ALHeFill45 = 8.58418E-05 #m
+		ALHeFill34 = 7.24358E-05 #m
+		ALHeFill23 = 9.20346E-05 #m
 		ALHeFill12 = 1.86757E-05 #m
 
-		ALHeFill45_gas = sFactor45* np.pi*(1./2)**2 /(2.9+3.5+0.5) * 0.0254 #m
-		ALHeFill34_gas = sFactor34* np.pi*(.75/2)**2 /(3.925+2.625+0.5) * 0.0254 #m
-		ALHeFill23_gas = sFactor23* np.pi*(.75/2)**2 /(0.5+2.625+0.5) * 0.0254 #m
+		ALHeFill45_gas = np.pi*(1./2)**2 /(2.9+3.5+0.5) * 0.0254 #m
+		ALHeFill34_gas = np.pi*(.75/2)**2 /(3.925+2.625+0.5) * 0.0254 #m
+		ALHeFill23_gas = np.pi*(.75/2)**2 /(0.5+2.625+0.5) * 0.0254 #m
+		# ALHeFill12_gas = np.pi*(.5/2)**2 /(2.9+) * 0.0254 #m
+
+		MTFill45 = HeatFlux_SS(T4,T5,ALHeFill45,) + HeatFlux_He(T4,T5,ALHeFill45_gas,)
+
+		MTFill34 = HeatFlux_SS(T3,T4,ALHeFill34,) + HeatFlux_He(T3,T4,ALHeFill34,)
+		MTFill23 = HeatFlux_SS(T2,T3,ALHeFill23,) + HeatFlux_He(T2,T3,ALHeFill23,)
+
+		SFTPump12 = HeatFlux_SS(T1,T2,ALHeFill12,)
+
+
+
+	elif config=='TIM':
+		# A over L ratio from CAD
+		ALHeFill45 = 8.58418E-05 #m
+		ALHeFill34 = 7.24358E-05 #m
+		ALHeFill23 = ringArea(1.5*0.0254, 0.015*0.0254)/(14*0.0254) #m
+		ALHeFill12 = 0 #m
+
+		ALHeFill45_gas = np.pi*(1./2)**2 /(2.9+3.5+0.5) * 0.0254 #m
+		ALHeFill34_gas = np.pi*(.75/2)**2 /(3.925+2.625+0.5) * 0.0254 #m
+		ALHeFill23_gas = np.pi*(.75/2)**2 /(0.5+2.625+0.5) * 0.0254 #m
 		# ALHeFill12_gas = np.pi*(.5/2)**2 /(2.9+) * 0.0254 #m
 
 		MTFill45 = HeatFlux_SS(T4,T5,ALHeFill45,) + HeatFlux_He(T4,T5,ALHeFill45_gas,)
@@ -658,26 +668,26 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		flexCondLoad4in = FluxToVCS2
 		flexCondLoad4out = -1*FluxToVCS1 #VCS 2 -> VCS1 connection
 
-	elif config == 'TIM':
+	elif config == 'TIM': 
 
-		# Relevant lengths and areas in meters, from BLAST excel
+		# Relevant lengths and areas in meters, from Matt's CAD
 
 		# supportive shells
-		L_ShelltoVCS2 = 27.3125 * 0.0254
-		A_ShelltoVCS2 = ringArea(35.625*0.0254, 0.0625*0.0254)
+		L_ShelltoVCS2 = 20 * 0.0254
+		A_ShelltoVCS2 = ringArea(38.5*0.0254, 0.125*0.0254)
 
-		L_VCS2toVCS1 = 12.625 * 0.0254
-		A_VCS2toVCS1 = ringArea(32.125*0.0254, 0.0625*0.0254)
+		L_VCS2toVCS1 = 9.25 * 0.0254
+		A_VCS2toVCS1 = ringArea(35.5*0.0254, 0.0625*0.0254)
 
-		L_VCS1toMT = 15.375 * 0.0254
-		A_VCS1toMT = ringArea(30.63*0.0254, 0.04*0.0254)
+		L_VCS1toMT = 15.75 * 0.0254
+		A_VCS1toMT = ringArea(34*0.0254, 0.04*0.0254)
 
 		L_MTtoSFT = 3.8 * 0.0254
 		A_MTtoSFT = ringArea(3.24*0.0254, 0.02*0.0254)
 
 		L_MTtoSFT_Truss = 0.2
 		A_MTtoSFT_Truss = np.pi *1.0**2 *1e-4 # area of OD =2cm truss
-		n_truss = 8
+		n_truss = 0
 
 		# Calculating heat loads for each junction
 		# T1 = SFT, T2 = 4k, T3 = VCS1, T4 = VCS2, T5 = 300K
@@ -687,11 +697,8 @@ def cond_loads(T1,T2,T3,T4,T5,sftPumped,sftEmpty,insNum, config = 'theo', flexFa
 		FluxToVCS1 = HeatFlux_G10(T3,T4,A_VCS2toVCS1/L_VCS2toVCS1, warp=warp) 	#VCS1 ->VCS2
 		FluxToMT = HeatFlux_G10(T2,T3,A_VCS1toMT/L_VCS1toMT, warp=warp) 		#MT ->VCS1
 
-		if (T1 != T2):
-			FluxToSFT = HeatFlux_G10(T1,T2, A_MTtoSFT/L_MTtoSFT, warp=warp)
-			FluxToSFT += HeatFlux_CF(T1,T2, n_truss* A_MTtoSFT_Truss/L_MTtoSFT_Truss,)
-		else:
-			FluxToSFT = 0
+		# No SFT in this Configuration
+		FluxToSFT = 0
 
 		# SFT
 		flexCondLoad1 = FluxToSFT

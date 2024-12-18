@@ -98,14 +98,9 @@ def load_areas(config='theo', insNum = 6.0):
 		VCS2_cyl = 2*np.pi*VCS2_OR*h_VCS2    #[cm**2]
 		VCS2_Area = VCS2_diskbottom + VCS2_disktop + VCS2_cyl   #[cm**2]
 
-	elif config =='TNG' or config=='TIM':
+	elif config =='TNG':
 
-		#Area of the SFT, estimate based on SolidWorks drawings of testCryostat
-		SFT_OD = 33
-		SFT_H = 26
-
-		SFT_Area = (2*np.pi*(SFT_OD**2/4) + np.pi*SFT_OD*SFT_H)*2.54**2 # [cm**2] cold box surface area
-		# SFT_Area = 314 #[cm**2] 314 cm**2 for a 5cm ball with Volume of ~500mL
+		SFT_Area = 314 #[cm**2] 314 cm**2 for a 5cm ball with Volume of ~500mL
 
 		#Area of MT from TNG Excel
 		MT_can = 2827.84   #[in**2]
@@ -114,7 +109,6 @@ def load_areas(config='theo', insNum = 6.0):
 		MT_hat = 73.19     #[in**2]
 		MT_Area = (MT_can + MT_lid + MT_top + MT_hat)*2.54**2   #[cm**2]
 
-		# MT_Area = MT_Area*1.3
 
 		#Area of VCS1 from TNG Excel
 		VCS1_can = 2964.09    #[in**2]
@@ -124,12 +118,48 @@ def load_areas(config='theo', insNum = 6.0):
 		VCS1_Area = (VCS1_can + VCS1_lid + VCS1_top + VCS1_hat)*2.54**2   #[cm**2]
 
 
+
 		#Area of VCS2 from TNG Excel
 		VCS2_can = 3361.11    #[in**2]
 		VCS2_lid = 4922.28   #[in**2]
 		VCS2_top = 1375.5     #[in**2]
 		VCS2_hat = 497.      #[in**2]
 		VCS2_Area = (VCS2_can + VCS2_lid + VCS2_top + VCS2_hat)*2.54**2   #[cm**2]
+
+	elif config=='TIM':
+
+		#Area of the SFT, estimate based on SolidWorks drawings of testCryostat
+		SFT_OD = 33
+		SFT_H = 26
+
+		# SFT_Area = (2*np.pi*(SFT_OD**2/4) + np.pi*SFT_OD*SFT_H)*2.54**2 # [cm**2] cold box surface area
+		# SFT_Area = 314 #[cm**2] 314 cm**2 for a 5cm ball with Volume of ~500mL
+		SFT_Area = 0
+
+
+		#Area of MT from Matt's TIM CAD
+		MT_shield   = 3811    #[in**2]
+		MT_tank     = 2963    #[in**2]
+		MT_hat      = 100     #[in**2]
+		MT_Area = (MT_shield + MT_tank + MT_hat)*2.54**2   #[cm**2]
+
+
+		#Area of VCS1 from Matt's TIM CAD
+		VCS1_shield   = 4357    #[in**2]
+		VCS1_cylinder = 2757    #[in**2]
+		VCS1_lid      = 770     #[in**2]
+		VCS1_hat      = 96   #[in**2]
+		VCS1_Area = (VCS1_shield + VCS1_cylinder + VCS1_lid + VCS1_hat)*2.54**2   #[cm**2]
+
+
+
+		#Area of VCS2 from Matt's TIM CAD
+		VCS2_shield   = 4862    #[in**2]
+		VCS2_cylinder = 2974    #[in**2]
+		VCS2_lid      = 898     #[in**2]
+		VCS2_hat      = 900   #[in**2]
+		VCS2_Area = (VCS2_shield + VCS2_cylinder + VCS2_lid + VCS2_hat)*2.54**2   #[cm**2]
+
 
 
 	return SFT_Area, MT_Area, VCS1_Area, VCS2_Area
