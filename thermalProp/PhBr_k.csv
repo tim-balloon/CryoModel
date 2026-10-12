@@ -1,0 +1,30 @@
+# Extracted from THERMAL AND ELECTRICAL CONDUCTIVITY MEASUREMENTS OF CDA 510 PHOSPHOR BRONZE 
+# noted that the 1st &2nd data point is from: Thermal conductance at millikelvin temperatures of woven ribbon cable with phosphor-bronze clad superconducting wires
+# Temp[K] Cond[W/m/K]
+0.1000  0.036
+1.0000	0.360
+3.1819	0.98259
+4.1341	1.4676
+5.4891	2.1004
+6.8860	2.8171
+8.1594	3.4929
+10.949	5.0758
+15.972	7.8627
+20.910	10.408
+25.012	12.308
+29.902	14.312
+34.961	16.206
+39.838	18.049
+49.815	21.205
+59.848	24.457
+69.737	27.278
+79.838	30.108
+99.259	35.707
+124.10	43.120
+149.28	50.877
+174.35	59.479
+199.14	68.734
+223.24	77.657
+249.91	88.365
+272.85	100.55
+290.88	106.18

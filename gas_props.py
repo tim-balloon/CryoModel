@@ -12,7 +12,12 @@ import os
 import numpy as np
 import scipy.integrate as integrate
 
-T_He, Cp_He = np.loadtxt('thermalProp/helium_cp.txt', unpack = True)
+
+_this_dir, _this_filename = os.path.split(__file__)
+
+T_He, Cp_He = np.loadtxt(_this_dir+'/thermalProp/helium_cp.txt', unpack = True)
+T_N, Cp_N = np.loadtxt(_this_dir+'/thermalProp/nitrogen_cp.txt', unpack = True)
+
 
 def mdot2SLPM(mdot):
 	'''
@@ -25,6 +30,17 @@ def mdot2SLPM(mdot):
 	SLPM = 60 * ( mdot / HeDensATStp );
 	return SLPM
 
+def LNmdot2SLPM(mdot):
+	'''
+	Converting from kg/s to standard liters per minute (SLPM)
+	'''
+
+	NDensAtBP = 806.1 #kg/m^3
+	NDensATStp = 28.02/22.41 #g/L
+
+	SLPM = 60 * ( mdot / NDensATStp )
+	return SLPM
+
 def SLPM2mdot(SLPM):
 	'''Converting from SLPM to kg/s'''
 
@@ -35,13 +51,20 @@ def SLPM2mdot(SLPM):
 	mdot = HeDensATStp*SLPM / 60.
 	return mdot
 
-def holdtime(mdot, numLiters = 1000):
+def holdtime(mdot, numLiters = 1000,):
 	'''Calculate the hold time of the cryostat'''
-
 	He_density = 125 #[g/l]
 	#Seconds in a day
-	spd = 24*3600;    #[s/day]
-	days = numLiters*He_density/mdot/spd;
+	spd = 24*3600    #[s/day]
+	days = numLiters*He_density/mdot/spd
+	return days
+
+def LNholdtime(mdot, numLiters = 1000,):
+	'''Calculate the hold time of the cryostat'''
+	LN_density = 807 #[g/l]
+	#Seconds in a day
+	spd = 24*3600    #[s/day]
+	days = numLiters*LN_density/mdot/spd
 	return days
 
 def CpInt(T_min, T_max, T_gas, Cp_gas):
@@ -106,7 +129,7 @@ def helium_cp(t_in, phase = 'gas'):
 
 	c = helium_cp(t_in)
 	'''
-	
+
 	if phase == 'gas':
 		t0 = np.array([4.2, 5, 10, 20, 30, 40, 50, 300])
 		c0 = 1e3*np.array([7.07, 6.32, 5.43, 5.25, 5.23, 5.21, 5.20, 5.20])

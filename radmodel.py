@@ -44,12 +44,12 @@ def isarr(v):
         return True
     return False
 
-def uprint(v, unit='W', fmt='%12.6f', cd=False):
+def uprint(v, unit='W', fmt='%12.3f', cd=False):
     if v is None:
         return '--- %s' % (unit)
 
     if v == 0:
-        return '%s %s' % (fmt, unit) % (v)
+        return '%s  %s' % (fmt, unit) % (v)
 
     udict = {-24  : 'y',  # yocto
               -21 : 'z', # zepto
@@ -1641,6 +1641,15 @@ def model150to90(model):
     return {'filter_stack': fstack, 'filter_offsets': foff}
 
 models = {
+    'tim_mock': {
+        'filter_stack': {'window': ['poly_window'],
+                         'vcs2':['c15','c15','c30','c30'],
+                         'vcs1':['c15','c30','c30'],
+                         '4k':[''],
+                         '2k':[''],
+                         },
+        'filter_offsets': {},
+        },
     'default': {
         'filter_stack': {'window': ['poly_window'],
                          'vcs2':['c15','c15','c30','c30'],
