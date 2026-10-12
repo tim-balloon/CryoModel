@@ -1,0 +1,44 @@
+Configuration: TNG
+T_Shell: 248.0 K
+-------------------
+VCS1cryocooler power: 0.000 W
+VCS1gas cooling power: 2.496 W
+VCS2 cryocooler power: 0.000 W
+VCS2 gas cooling power: 4.254 W
+--------
+mdot (g/s): 0.013, Holdtime (days): 28.549
+boil-off rate (L/day): 8.757
+SLPM (from MT/l): 4.256
+SLPM (from MTLoad/l): 4.260
+MT power: 0.265 W
+MTLoad power: 0.265 W
+--------
+SFT Loading:      215.226 uW
+--------
+ Stage | Temperature
+ VCS2  | 131.16 K
+ VCS1  | 50.40 K
+--------
+Loads
+           |   SFT      |    MT      |   VCS1     |   VCS2     |
+Aperture   | 0.00e+00 W | 3.15e-04 W | 1.68e-02 W | 2.03e-01 W |
+Radiative  | 7.41e-06 W | 1.45e-01 W | 2.20e+00 W | 5.91e+00 W |
+Structural | 1.98e-04 W | 6.42e-02 W | 4.31e-01 W | 4.94e-01 W |
+Plumbing   | 9.32e-06 W | 1.41e-02 W | 5.26e-02 W | 3.41e-01 W |
+Wiring     | 0.00e+00 W | 1.50e-02 W | 3.45e-02 W | 0.00e+00 W |
+--------
+Total      | 2.15e-04 W | 2.65e-01 W | 2.73e+00 W | 6.95e+00 W |
+--------
+Loads distribution
+           |   SFT      |    MT      |   VCS1     |   VCS2     |
+Aperture   |  00.00 %   |  00.12 %   |  00.62 %   |  02.92 %   |
+Radiative  |  03.44 %   |  54.85 %   |  80.43 %   |  85.06 %   |
+Structural |  92.23 %   |  24.24 %   |  15.76 %   |  07.11 %   |
+Plumbing   |  04.33 %   |  05.33 %   |  01.93 %   |  04.91 %   |
+Wiring     |  00.00 %   |  05.65 %   |  01.26 %   |  00.00 %   |
+--------
+In-band detector loading:        0.000 W
+--------
+Number of Iteration: 27
+Run time: 1.029 s
+--------
